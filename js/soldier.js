@@ -1,8 +1,32 @@
 // 士兵模型与动画
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mat } from './materials.js';
 import { buildGun } from './gunmodel.js';
 import { textTexture } from './textures.js';
+
+// 合并同一骨骼节点下的静态 mesh（按材质），减少每名士兵的 draw call
+function mergeDirectMeshes(group) {
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const meshes = group.children.filter(o => o.isMesh);
+  if (meshes.length < 2) return;
+  const byMat = new Map();
+  for (const mesh of meshes) {
+    const geo = mesh.geometry.clone();
+    geo.applyMatrix4(new THREE.Matrix4().copy(inv).multiply(mesh.matrixWorld));
+    if (!byMat.has(mesh.material)) byMat.set(mesh.material, []);
+    byMat.get(mesh.material).push(geo);
+    group.remove(mesh);
+  }
+  for (const [material, geos] of byMat) {
+    const merged = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+}
 
 export const STYLES = {
   ally: { fab: 'fab_ally', vest: 0x5e5440, helmet: 0x5a513d, head: 'helmet', nvg: true, face: 'skin' },
@@ -79,7 +103,7 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
   const goggles = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.03, 0.03), mat('darkMetal')); goggles.position.set(0, 0.12, -0.1); neck.add(goggles);
 
   // 手臂与枪（持枪姿势）
-  const gunInfo = buildGun(weaponId, attachments, camo, { low: true });
+  const gunInfo = buildGun(weaponId, attachments, camo, { low: true, merge: true });
   const gun = gunInfo.group;
   gun.position.set(0.08, 0.4, -0.3);
   torso.add(gun);
@@ -100,6 +124,9 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
   limb(shL, elL, 0.065, cloth); limb(elL, fore, 0.055, cloth);
   const shoulderPad = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), vest); shoulderPad.position.copy(shR); torso.add(shoulderPad);
   const sp2 = shoulderPad.clone(); sp2.position.copy(shL); torso.add(sp2);
+
+  mergeDirectMeshes(torso);
+  mergeDirectMeshes(neck);
 
   root.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 

@@ -85,10 +85,113 @@ export const WEAPONS = {
     sound: 'rocket', model: { rpg: true, color: 'green' },
     slots: [],
   },
+
+  // ---------- 国产枪族 ----------
+  qbz95: {
+    name: 'QBZ-95-1', cls: '突击步枪', type: 'ar', slot: 'primary',
+    dmg: [31, 23], range: [26, 52], rpm: 650, mag: 30, reserve: 150, reload: 2.2, ads: 0.25,
+    recoil: [1.15, 0.5], spread: 3.3, mobility: 0.94, fire: 'auto', headMul: 1.45, sprintFire: 0.23,
+    sound: 'rifle', model: { recv: 0.3, barrel: 0.26, hand: 0.24, mag: 'straight', color: 'black', grip: 'ar', bullpup: true, carry: true },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'under', 'mag', 'rear'],
+  },
+  qbz191: {
+    name: 'QBZ-191', cls: '突击步枪', type: 'ar', slot: 'primary',
+    dmg: [30, 22], range: [30, 58], rpm: 750, mag: 30, reserve: 150, reload: 2.1, ads: 0.24,
+    recoil: [1.0, 0.42], spread: 3.2, mobility: 0.93, fire: 'auto', headMul: 1.45, sprintFire: 0.22,
+    sound: 'rifle', model: { recv: 0.3, barrel: 0.3, hand: 0.28, stock: 'skeleton', mag: 'straight', color: 'black', grip: 'ar' },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'stock', 'under', 'mag', 'rear'],
+  },
+  qbz03: {
+    name: 'QBZ-03', cls: '突击步枪', type: 'ar', slot: 'primary',
+    dmg: [35, 24], range: [30, 60], rpm: 580, mag: 30, reserve: 150, reload: 2.4, ads: 0.27,
+    recoil: [1.32, 0.62], spread: 3.6, mobility: 0.92, fire: 'auto', headMul: 1.4, sprintFire: 0.25,
+    sound: 'rifle_heavy', model: { recv: 0.3, barrel: 0.3, hand: 0.24, stock: 'fixed', mag: 'curved', color: 'black', grip: 'ak' },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'stock', 'under', 'mag', 'rear'],
+  },
+  qbu88: {
+    name: 'QBU-88', cls: '射手步枪', type: 'marksman', slot: 'primary',
+    dmg: [58, 47], range: [50, 95], rpm: 330, mag: 10, reserve: 60, reload: 2.7, ads: 0.31,
+    recoil: [1.9, 0.55], spread: 4.8, mobility: 0.92, fire: 'semi', headMul: 1.9, sprintFire: 0.28,
+    sound: 'rifle_heavy', model: { recv: 0.32, barrel: 0.44, hand: 0.26, mag: 'box10', color: 'black', grip: 'ar', bullpup: true, bipod: true },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'mag', 'rear'],
+  },
+  qbb95: {
+    name: 'QBB-95-1', cls: '轻机枪', type: 'lmg', slot: 'primary',
+    dmg: [33, 25], range: [38, 70], rpm: 700, mag: 75, reserve: 150, reload: 5.4, ads: 0.42,
+    recoil: [1.05, 0.6], spread: 5.2, mobility: 0.86, fire: 'auto', headMul: 1.35, sprintFire: 0.36,
+    sound: 'lmg', model: { recv: 0.32, barrel: 0.34, hand: 0.26, mag: 'drum', color: 'black', grip: 'ar', bullpup: true, carry: true, bipod: true },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'under', 'rear'],
+  },
+  qcw05: {
+    name: 'QCW-05', cls: '冲锋枪', type: 'smg', slot: 'primary',
+    dmg: [24, 15], range: [10, 26], rpm: 900, mag: 50, reserve: 150, reload: 2.0, ads: 0.18,
+    recoil: [0.5, 0.42], spread: 2.6, mobility: 1.04, fire: 'auto', headMul: 1.3, sprintFire: 0.13,
+    suppressed: true, sound: 'smg', model: { recv: 0.26, barrel: 0.2, hand: 0.18, mag: 'straight', color: 'black', grip: 'ar', bullpup: true, integralSupp: true },
+    slots: ['barrel', 'laser', 'optic', 'under', 'mag', 'rear'],
+  },
+  qsz92: {
+    name: 'QSZ-92', cls: '手枪', type: 'pistol', slot: 'secondary',
+    dmg: [34, 20], range: [11, 26], rpm: 480, mag: 15, reserve: 60, reload: 1.6, ads: 0.15,
+    recoil: [1.3, 0.35], spread: 2.2, mobility: 1.1, fire: 'semi', headMul: 1.5, sprintFire: 0.1,
+    sound: 'pistol', model: { pistol: true, poly: true, color: 'black' },
+    slots: ['muzzle', 'laser', 'optic', 'mag'],
+  },
+
+  // ---------- 外国经典补充 ----------
+  g36c: {
+    name: 'G36C', cls: '突击步枪', type: 'ar', slot: 'primary',
+    dmg: [28, 20], range: [26, 52], rpm: 750, mag: 30, reserve: 150, reload: 2.2, ads: 0.25,
+    recoil: [1.0, 0.48], spread: 3.4, mobility: 0.94, fire: 'auto', headMul: 1.45, sprintFire: 0.23,
+    sound: 'rifle', model: { recv: 0.28, barrel: 0.22, hand: 0.24, stock: 'fold', mag: 'straight', color: 'black', grip: 'ar' },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'stock', 'under', 'mag', 'rear'],
+  },
+  aug: {
+    name: 'AUG A3', cls: '突击步枪', type: 'ar', slot: 'primary',
+    dmg: [30, 22], range: [30, 58], rpm: 680, mag: 30, reserve: 150, reload: 2.3, ads: 0.25,
+    recoil: [1.05, 0.45], spread: 3.2, mobility: 0.95, fire: 'auto', headMul: 1.45, sprintFire: 0.23,
+    sound: 'rifle', defaultOptic: 'reddot', defaultZoom: 1.35,
+    model: { recv: 0.3, barrel: 0.3, hand: 0.24, mag: 'straight', color: 'black', grip: 'ar', bullpup: true },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'under', 'mag', 'rear'],
+  },
+  p90: {
+    name: 'P90', cls: '冲锋枪', type: 'smg', slot: 'primary',
+    dmg: [24, 15], range: [10, 26], rpm: 900, mag: 50, reserve: 150, reload: 2.2, ads: 0.18,
+    recoil: [0.45, 0.4], spread: 2.5, mobility: 1.05, fire: 'auto', headMul: 1.3, sprintFire: 0.12,
+    sound: 'smg', model: { recv: 0.26, barrel: 0.12, hand: 0.2, mag: 'top', stock: 'p90', color: 'black', grip: 'p90' },
+    slots: ['laser', 'optic', 'rear'],
+  },
+  mp7: {
+    name: 'MP7', cls: '冲锋枪', type: 'smg', slot: 'primary',
+    dmg: [22, 14], range: [9, 24], rpm: 950, mag: 40, reserve: 160, reload: 1.9, ads: 0.16,
+    recoil: [0.5, 0.45], spread: 2.5, mobility: 1.07, fire: 'auto', headMul: 1.3, sprintFire: 0.11,
+    sound: 'smg', model: { recv: 0.22, barrel: 0.1, hand: 0.14, stock: 'mp7', mag: 'straight', color: 'black', grip: 'ar', compact: true },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'stock', 'under', 'mag', 'rear'],
+  },
+  m249: {
+    name: 'M249', cls: '轻机枪', type: 'lmg', slot: 'primary',
+    dmg: [35, 28], range: [40, 75], rpm: 650, mag: 100, reserve: 200, reload: 6.0, ads: 0.45,
+    recoil: [1.2, 0.7], spread: 5.6, mobility: 0.82, fire: 'auto', headMul: 1.35, sprintFire: 0.4,
+    sound: 'lmg', model: { recv: 0.34, barrel: 0.4, hand: 0.28, stock: 'fixed', mag: 'belt', color: 'black', grip: 'ak', bipod: true },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'under', 'rear'],
+  },
+  svd: {
+    name: 'SVD', cls: '射手步枪', type: 'marksman', slot: 'primary',
+    dmg: [64, 52], range: [50, 100], rpm: 300, mag: 10, reserve: 60, reload: 2.8, ads: 0.32,
+    recoil: [2.4, 0.7], spread: 5.2, mobility: 0.9, fire: 'semi', headMul: 1.95, sprintFire: 0.29,
+    sound: 'rifle_heavy', model: { recv: 0.32, barrel: 0.5, hand: 0.26, stock: 'sniper', mag: 'box10', color: 'wood', grip: 'sniper' },
+    slots: ['muzzle', 'barrel', 'laser', 'optic', 'stock', 'mag', 'rear'],
+  },
 };
 
-export const PRIMARY_ORDER = ['m4', 'ak', 'scar', 'mp5', 'vector', 'pkm', 'm870', 'sks', 'l115'];
-export const SECONDARY_ORDER = ['m1911', 'revolver', 'rpg'];
+export const PRIMARY_ORDER = [
+  'm4', 'ak', 'scar', 'qbz95', 'qbz191', 'qbz03', 'g36c', 'aug',
+  'mp5', 'vector', 'p90', 'mp7', 'qcw05',
+  'pkm', 'qbb95', 'm249',
+  'm870',
+  'sks', 'qbu88', 'svd',
+  'l115',
+];
+export const SECONDARY_ORDER = ['m1911', 'revolver', 'qsz92', 'rpg'];
 
 export const SLOT_NAMES = {
   muzzle: '枪口', barrel: '枪管', laser: '激光', optic: '瞄准镜', stock: '枪托', under: '下挂', mag: '弹匣', rear: '后握把',
@@ -166,10 +269,10 @@ export function computeStats(weaponId, attachments = {}) {
     rpm: b.rpm, mag: b.mag, reserve: b.reserve, reload: b.reload, ads: b.ads,
     recoilV: b.recoil[0], recoilH: b.recoil[1], hip: b.spread, adsSpread: b.adsSpread || 0.15,
     mobility: b.mobility, fire: b.fire, headMul: b.headMul, pellets: b.pellets || 1,
-    sprintFire: b.sprintFire, suppressed: false, zoom: 1.2, optic: 'iron', laser: false,
+    sprintFire: b.sprintFire, suppressed: !!b.suppressed, zoom: 1.2, optic: 'iron', laser: false,
     projectile: b.projectile, sound: b.sound, shellReload: !!b.shellReload, flashHide: false,
   };
-  if (b.defaultOptic && !attachments.optic) { s.optic = b.defaultOptic; s.zoom = 7; }
+  if (b.defaultOptic && !attachments.optic) { s.optic = b.defaultOptic; s.zoom = b.defaultZoom || 7; }
   for (const slot in attachments) {
     const a = findAttachment(slot, attachments[slot]);
     if (!a) continue;
@@ -261,6 +364,7 @@ export const MP_MAPS = [
   { id: 'frost', name: '寒霜炼厂', desc: '暴风雪中的废弃炼油厂，仓库、储油罐与集装箱构成多层次战场。', style: '雪地 · 阴天', grad: 'linear-gradient(135deg,#c9d6e3,#4f6275)' },
   { id: 'neon', name: '霓虹街区', desc: '雨夜中的都市街区，霓虹灯下的湿滑街道与狭窄小巷，近距离激战。', style: '都市 · 雨夜', grad: 'linear-gradient(135deg,#ff3fa4,#1b1f5e)' },
   { id: 'yard', name: '货柜场', desc: '夕阳下的小型集装箱堆场，节奏极快的混战地图。', style: '港口 · 黄昏', grad: 'linear-gradient(135deg,#ff9a3c,#5a2a3a)' },
+  { id: 'airfield', name: '边境机场', desc: '黎明时分的边境机场，310 米跑道贯穿全图，航站楼、机库、油库与货运区构成三条进攻路线，适合远距离交火。', style: '戈壁 · 黎明', grad: 'linear-gradient(135deg,#f3c58d,#4a3a32)' },
 ];
 
 export const MP_MODES = [

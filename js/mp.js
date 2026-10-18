@@ -8,7 +8,11 @@ import { fireHitscan, Projectile } from './combat.js';
 import { mat } from './materials.js';
 import { rand, pick, fmtTime, spreadDir, DEG, clamp, rayAABB } from './util.js';
 
-const BOT_WEAPONS = ['m4', 'm4', 'ak', 'ak', 'scar', 'mp5', 'mp5', 'vector', 'pkm', 'm870', 'sks', 'l115'];
+const BOT_WEAPONS = [
+  'm4', 'm4', 'ak', 'ak', 'scar', 'qbz95', 'qbz191', 'qbz03', 'g36c', 'aug',
+  'mp5', 'mp5', 'vector', 'p90', 'mp7', 'qcw05',
+  'pkm', 'qbb95', 'm249', 'm870', 'sks', 'qbu88', 'svd', 'l115',
+];
 
 function randomAtt(wid) {
   const att = {};

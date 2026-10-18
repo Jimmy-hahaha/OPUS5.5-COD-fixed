@@ -332,7 +332,7 @@ class Game {
     this.entities = this.entities.filter(b => b !== bot);
   }
   spawnPickup(weaponId, att, pos, mag, reserve) {
-    const info = buildGun(weaponId, att || {}, 'none', { low: true });
+    const info = buildGun(weaponId, att || {}, 'none', { low: true, merge: true });
     const m = info.group;
     m.position.set(pos.x, (this.world ? this.world.groundHeight(pos.x, pos.z, pos.y + 1, 0.2) : 0) + 0.06, pos.z);
     m.rotation.set(0, Math.random() * 6, Math.PI / 2);
@@ -384,7 +384,7 @@ class Game {
   }
   update(dt, inp) {
     this.time += dt;
-    this.pathBudget = 3;
+    this.pathBudget = this.world && this.world.half > 150 ? 1 : 3;
     if (this.noises.length) this.noises = this.noises.filter(n => this.time - n.t < 0.6);
     const pl = this.player;
     if (pl) {

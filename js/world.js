@@ -18,6 +18,29 @@ function boxGeo(w, h, d, s) {
   return g;
 }
 
+// 把静态道具组内的 mesh 按材质合并，减少树木/车辆的 draw call
+function mergeGroup(group) {
+  const meshes = group.children.filter(o => o.isMesh);
+  if (meshes.length < 2) return;
+  group.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
+  const byMat = new Map();
+  for (const mesh of meshes) {
+    const geo = mesh.geometry.clone();
+    geo.applyMatrix4(new THREE.Matrix4().copy(inv).multiply(mesh.matrixWorld));
+    if (!byMat.has(mesh.material)) byMat.set(mesh.material, []);
+    byMat.get(mesh.material).push(geo);
+    group.remove(mesh);
+  }
+  for (const [material, geos] of byMat) {
+    const merged = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+}
+
 export class World {
   constructor(game, def) {
     this.game = game;
@@ -166,12 +189,15 @@ export class World {
     for (let r = 0; r < rows; r++) {
       const off = (r % 2) * 0.25;
       const n = Math.floor((len - off) / 0.55);
-      // 视觉
+      // 沙袋：低段数胶囊（视觉接近原版），比原来的高面数胶囊省 4 倍顶点
+      const baseBag = this._bagBase || (this._bagBase = new THREE.CapsuleGeometry(0.13, 0.32, 1, 5));
       for (let i = 0; i < n; i++) {
         const t = -len / 2 + off + 0.28 + i * 0.55;
-        const g = new THREE.CapsuleGeometry(0.13, 0.32, 3, 8);
-        g.rotateZ(Math.PI / 2); g.scale(1, 0.85, 1.25);
-        if (along) g.rotateY(Math.PI / 2);
+        const g = baseBag.clone();
+        g.rotateZ(Math.PI / 2);
+        g.scale(1.05, 1.0, 1.3);
+        if (along) g.rotateY(Math.PI / 2 + (this.rng() - 0.5) * 0.2);
+        else g.rotateY((this.rng() - 0.5) * 0.2);
         const px = along ? x : x + t, pz = along ? z + t : z;
         g.translate(px, r * 0.24 + 0.12, pz);
         const m = mat('sandbag');
@@ -210,6 +236,7 @@ export class World {
       }
     }
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    mergeGroup(g);
     g.position.set(x, 0, z); g.rotation.y = rotY;
     this.root.add(g);
     const along = Math.abs(Math.sin(rotY)) > 0.7;
@@ -235,6 +262,7 @@ export class World {
     const hl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.05), mat('lampCold'));
     hl.position.set(-0.7, 1.05, -3.52); g.add(hl); const hl2 = hl.clone(); hl2.position.x = 0.7; g.add(hl2);
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    mergeGroup(g);
     g.position.set(x, 0, z); g.rotation.y = rotY;
     this.root.add(g);
     return g;
@@ -306,6 +334,7 @@ export class World {
       }
     }
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    mergeGroup(g);
     g.position.set(x, 0, z);
     this.root.add(g);
     this.collider(x - 0.25 * s, 0, z - 0.25 * s, x + 0.25 * s, 4 * s, z + 0.25 * s);
@@ -413,7 +442,9 @@ export class World {
     this.sunDir = sd;
     sun.castShadow = true;
     const q = game.settings.quality;
-    const ss = q === 'high' ? 4096 : q === 'medium' ? 2048 : 1024;
+    // 大地图（如 400m 机场）阴影贴图降一档，避免高分辨率阴影拖慢帧率
+    const big = this.def.size > 250;
+    const ss = q === 'high' ? (big ? 2048 : 4096) : q === 'medium' ? 2048 : 1024;
     sun.shadow.mapSize.set(ss, ss);
     const sc = sun.shadow.camera;
     const R = Math.min(70, this.half + 10);
@@ -490,8 +521,44 @@ export class World {
       this.root.add(mesh);
     }
     this.geoLists.clear();
+    this.batchStatic();
     this.buildGrid();
     this.buildTopDown();
+  }
+
+  // 把所有静态道具按材质合并成少量大网格：显著降低 draw call（AI/载具/树木较多的地图收益最大）
+  batchStatic() {
+    const meshes = [];
+    this.root.updateMatrixWorld(true);
+    this.root.traverse(o => {
+      if (!o.isMesh || !o.material || Array.isArray(o.material) || o.material.isShaderMaterial) return;
+      meshes.push(o);
+    });
+    if (meshes.length < 2) return;
+    const inv = new THREE.Matrix4().copy(this.root.matrixWorld).invert();
+    const byMat = new Map();
+    for (const mesh of meshes) {
+      let geo = mesh.geometry.index ? mesh.geometry.toNonIndexed() : mesh.geometry.clone();
+      geo.applyMatrix4(new THREE.Matrix4().copy(inv).multiply(mesh.matrixWorld));
+      if (!geo.attributes.uv) geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2));
+      let e = byMat.get(mesh.material);
+      if (!e) { e = { geos: [], cast: false, receive: false }; byMat.set(mesh.material, e); }
+      e.geos.push(geo);
+      e.cast = e.cast || mesh.castShadow;
+      e.receive = e.receive || mesh.receiveShadow;
+      mesh.parent.remove(mesh);
+    }
+    for (const [material, e] of byMat) {
+      const merged = e.geos.length === 1 ? e.geos[0] : mergeGeometries(e.geos, false);
+      if (!merged) {
+        // 合并失败时退回独立网格，绝不丢几何
+        for (const geo of e.geos) this.root.add(new THREE.Mesh(geo, material));
+        continue;
+      }
+      const mesh = new THREE.Mesh(merged, material);
+      mesh.castShadow = e.cast; mesh.receiveShadow = e.receive;
+      this.root.add(mesh);
+    }
   }
 
   update(dt, t, camPos) {
@@ -643,14 +710,20 @@ export class World {
     s = this.nearestWalkable(s[0], s[1]); e = this.nearestWalkable(e[0], e[1]);
     if (!s || !e) return null;
     const si = s[1] * n + s[0], ei = e[1] * n + e[0];
-    const g = new Float32Array(n * n).fill(1e9), par = new Int32Array(n * n).fill(-1), closed = new Uint8Array(n * n);
-    const f = new Float32Array(n * n);
+    // 复用寻路缓冲区：400×400 大地图每帧 3 次寻路，避免反复分配数 MB 内存
+    let buf = this._pathBuf;
+    if (!buf || buf.n !== n) {
+      buf = this._pathBuf = { n, g: new Float32Array(n * n), par: new Int32Array(n * n), closed: new Uint8Array(n * n), f: new Float32Array(n * n) };
+    }
+    const g = buf.g, par = buf.par, closed = buf.closed, f = buf.f;
+    g.fill(1e9); par.fill(-1); closed.fill(0);
     const heap = new BinaryHeap(i => f[i]);
     g[si] = 0; f[si] = 0; heap.push(si);
     const ex = e[0], ez = e[1];
+    const maxIter = n > 250 ? 24000 : 12000;
     let iter = 0, found = false;
     const dirs = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
-    while (heap.size && iter++ < 12000) {
+    while (heap.size && iter++ < maxIter) {
       const c = heap.pop();
       if (c === ei) { found = true; break; }
       if (closed[c]) continue; closed[c] = 1;

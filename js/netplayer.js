@@ -48,7 +48,7 @@ export class NetPlayer {
   setWeapon(id) {
     this.weaponId = id; this.stats = computeStats(id, {});
     if (this.gunGroup) this.model.torso.remove(this.gunGroup);
-    const info = buildGun(id, {}, 'none', { low: true });
+    const info = buildGun(id, {}, 'none', { low: true, merge: true });
     info.group.position.set(0.08, 0.4, -0.3);
     this.model.torso.add(info.group);
     this.gunGroup = info.group;

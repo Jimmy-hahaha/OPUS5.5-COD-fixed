@@ -1,5 +1,6 @@
 // 程序化枪械模型（含配件可视化）
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { WEAPONS } from './data.js';
 import { mat, camoMaterial } from './materials.js';
 
@@ -16,6 +17,35 @@ function cgeo(r1, r2, len, seg = 14, open = false) {
 }
 
 export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
+  const info = buildGunInner(weaponId, att, camo, opts);
+  if (opts.merge) mergeStaticMeshes(info.group);
+  return info;
+}
+
+// 把静态枪模按材质合并，大幅减少 AI 士兵/掉落武器的 draw call（第一人称枪模不走这里）
+function mergeStaticMeshes(root) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const byMat = new Map();
+  const meshes = [];
+  root.traverse(o => { if (o.isMesh) meshes.push(o); });
+  for (const mesh of meshes) {
+    const geo = mesh.geometry.clone();
+    geo.applyMatrix4(new THREE.Matrix4().copy(inv).multiply(mesh.matrixWorld));
+    if (!byMat.has(mesh.material)) byMat.set(mesh.material, []);
+    byMat.get(mesh.material).push(geo);
+    mesh.parent.remove(mesh);
+  }
+  for (const [material, geos] of byMat) {
+    const merged = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
+    if (!merged) continue;
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.castShadow = false; mesh.receiveShadow = false;
+    root.add(mesh);
+  }
+}
+
+function buildGunInner(weaponId, att = {}, camo = 'none', opts = {}) {
   const def = WEAPONS[weaponId];
   const M = def.model;
   const root = new THREE.Group();
@@ -63,6 +93,19 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
       info.muzzle.position.set(0, 0.06, -0.25);
       info.sight.set(0, 0.083, 0.02);
       info.mag = add(bgeo(0.001, 0.001, 0.001), metal, 0, 0.05, -0.02);
+    } else if (M.poly) {
+      // QSZ-92：多边形套筒、平移击针、无外露击锤、双排长弹匣
+      add(bgeo(0.03, 0.03, 0.2), body, 0, 0.052, -0.07, 0, 0, Math.PI / 4);
+      add(bgeo(0.032, 0.02, 0.19), body, 0, 0.036, -0.07);
+      add(bgeo(0.028, 0.025, 0.16), metal, 0, 0.018, -0.06);
+      add(bgeo(0.03, 0.1, 0.045), furn, 0, -0.032, 0.03, 0.22);
+      add(bgeo(0.005, 0.03, 0.04), metal, 0, 0.0, -0.035);
+      add(bgeo(0.004, 0.01, 0.008), metal, 0, 0.073, -0.16);
+      add(bgeo(0.018, 0.01, 0.01), metal, 0, 0.073, 0.02);
+      info.mag = add(bgeo(0.024, 0.11, 0.036), metal, 0, -0.04, 0.03, 0.22);
+      info.muzzle.position.set(0, 0.052, -0.18);
+      info.sight.set(0, 0.08, 0.03);
+      if (att.mag) info.mag.scale.y = 1.5;
     } else {
       add(bgeo(0.03, 0.032, 0.2), body, 0, 0.05, -0.07);
       add(bgeo(0.028, 0.025, 0.16), metal, 0, 0.022, -0.06);
@@ -95,6 +138,8 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
 
   // ---------- 长枪 ----------
   const recv = M.recv, hand = M.hand;
+  const bullpup = !!M.bullpup;          // 无托：握把前移、弹匣移到握把后方
+  const topMag = M.mag === 'top';       // P90 顶置弹匣
   let barrel = M.barrel;
   if (att.barrel === 'long') barrel += 0.1;
   if (att.barrel === 'short') barrel -= 0.08;
@@ -127,7 +172,12 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
   if (M.stock === 'ak' && M.color === 'wood') add(cgeo(0.012, 0.012, hand * 0.9), metal, 0, 0.07, (hz0 + hz1) / 2); // 导气管
   // 枪口
   const mz = att.muzzle;
-  if (mz === 'suppressor') { add(cgeo(0.022, 0.022, 0.19, 16), mat('gunPoly'), 0, 0.035, muzzleZ - 0.095); muzzleZ -= 0.19; }
+  if (M.integralSupp) {
+    // 一体式消音器（QCW-05）：粗大的管状消音器
+    add(cgeo(0.024, 0.026, 0.21, 16), mat('gunPoly'), 0, 0.035, muzzleZ - 0.105);
+    add(cgeo(0.026, 0.026, 0.012, 16), metal, 0, 0.035, muzzleZ - 0.01);
+    muzzleZ -= 0.21;
+  } else if (mz === 'suppressor') { add(cgeo(0.022, 0.022, 0.19, 16), mat('gunPoly'), 0, 0.035, muzzleZ - 0.095); muzzleZ -= 0.19; }
   else if (mz === 'comp') { add(bgeo(0.03, 0.03, 0.06), metal, 0, 0.035, muzzleZ - 0.03); muzzleZ -= 0.06; }
   else if (mz === 'brake') { add(cgeo(0.017, 0.017, 0.06), metal, 0, 0.035, muzzleZ - 0.03); add(bgeo(0.04, 0.008, 0.02), metal, 0, 0.035, muzzleZ - 0.03); muzzleZ -= 0.06; }
   else if (mz === 'flash') { add(cgeo(0.014, 0.018, 0.07), metal, 0, 0.035, muzzleZ - 0.035); muzzleZ -= 0.07; }
@@ -135,12 +185,33 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
   info.muzzle.position.set(0, 0.035, muzzleZ);
   // 机械瞄具
   const optic = att.optic || (def.defaultOptic && !att.optic ? def.defaultOptic : null);
-  const sightY = railY + 0.035;
+  const opticLift = topMag ? 0.05 : 0; // P90 的顶置弹匣把瞄具整体抬高
+  const sightY = railY + 0.035 + opticLift;
   if (!optic) {
-    add(bgeo(0.004, 0.035, 0.006), metal, 0, railY + 0.02, hz1 + 0.02);
-    add(bgeo(0.02, 0.012, 0.012), metal, 0, railY + 0.006, hz1 + 0.02);
-    add(bgeo(0.022, 0.022, 0.016), metal, 0, railY + 0.02, zRear - 0.02);
-    info.sight.set(0, railY + 0.034, zRear + 0.13);
+    add(bgeo(0.004, 0.035, 0.006), metal, 0, railY + 0.02 + opticLift, hz1 + 0.02);
+    add(bgeo(0.02, 0.012, 0.012), metal, 0, railY + 0.006 + opticLift, hz1 + 0.02);
+    add(bgeo(0.022, 0.022, 0.016), metal, 0, railY + 0.02 + opticLift, zRear - 0.02);
+    info.sight.set(0, railY + 0.034 + opticLift, zRear + 0.13);
+  }
+  // 提把：95 式 / 95 班机的标志性造型
+  if (M.carry) {
+    const cy = railY + 0.032;
+    const cf = hz1 + 0.02;                       // 提把前端（护木前部上方）
+    const cb = zFront + recv * 0.3;              // 提把后端（机匣前段，给瞄具留位置）
+    if (optic) {
+      // 装了瞄具时提把让位：只保留两侧矮安装座，避免横梁挡住瞄准线
+      add(bgeo(0.007, 0.016, cf - cb), metal, -0.026, railY + 0.012, (cf + cb) / 2);
+      add(bgeo(0.007, 0.016, cf - cb), metal, 0.026, railY + 0.012, (cf + cb) / 2);
+      add(bgeo(0.024, 0.018, 0.014), metal, 0, railY + 0.016, zRear - 0.025);
+    } else {
+      add(bgeo(0.017, 0.014, cf - cb), metal, 0, cy, (cf + cb) / 2);
+      add(bgeo(0.013, 0.045, 0.016), metal, 0, railY + 0.022, cf - 0.03);      // 前支柱
+      add(bgeo(0.022, 0.032, 0.016), metal, 0, railY + 0.018, cb + 0.02);      // 后支柱
+      add(bgeo(0.026, 0.018, 0.02), metal, 0, cy + 0.014, cf - 0.03);          // 前准星护圈
+      add(bgeo(0.004, 0.022, 0.006), metal, 0, cy + 0.022, cf - 0.03);         // 准星
+      add(bgeo(0.024, 0.02, 0.014), metal, 0, railY + 0.04, zRear - 0.025);    // 后照门
+      info.sight.set(0, cy + 0.026, zRear + 0.12);
+    }
   }
   // 瞄具
   info.optic = optic || 'iron';
@@ -148,7 +219,7 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
   if (optic === 'reddot') {
     // 与手枪红点同款：开放式框架 + 小镜片（镜筒会在 ADS 时形成一圈黑边）
     const ry = sightY + 0.002;
-    add(bgeo(0.032, 0.008, 0.045), metal, 0, railY + 0.016, oz);
+    add(bgeo(0.032, 0.008, 0.045), metal, 0, railY + 0.016 + opticLift, oz);
     add(bgeo(0.005, 0.038, 0.014), metal, -0.019, ry, oz - 0.016);
     add(bgeo(0.005, 0.038, 0.014), metal, 0.019, ry, oz - 0.016);
     add(bgeo(0.043, 0.005, 0.014), metal, 0, ry + 0.0215, oz - 0.016);
@@ -158,7 +229,7 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
     info.reticle.renderOrder = 10;
     info.sight.set(0, ry, oz + 0.1);
   } else if (optic === 'holo') {
-    add(bgeo(0.04, 0.016, 0.07), metal, 0, railY + 0.02, oz);
+    add(bgeo(0.04, 0.016, 0.07), metal, 0, railY + 0.02 + opticLift, oz);
     add(bgeo(0.005, 0.04, 0.05), metal, -0.021, sightY + 0.005, oz - 0.01);
     add(bgeo(0.005, 0.04, 0.05), metal, 0.021, sightY + 0.005, oz - 0.01);
     add(bgeo(0.047, 0.005, 0.05), metal, 0, sightY + 0.026, oz - 0.01);
@@ -171,7 +242,7 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
     info.reticle = ret;
     info.sight.set(0, sightY, oz + 0.12);
   } else if (optic === 'acog' || optic === 'thermal') {
-    add(bgeo(0.03, 0.02, 0.05), metal, 0, railY + 0.02, oz);
+    add(bgeo(0.03, 0.02, 0.05), metal, 0, railY + 0.02 + opticLift, oz);
     add(cgeo(0.019, 0.019, 0.12, 16), metal, 0, sightY + 0.005, oz);
     add(cgeo(0.024, 0.019, 0.03, 16), metal, 0, sightY + 0.005, oz - 0.07);
     add(cgeo(0.022, 0.019, 0.025, 16), metal, 0, sightY + 0.005, oz + 0.065);
@@ -180,8 +251,8 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
     info.sight.set(0, sightY + 0.005, oz + 0.14);
   } else if (optic === 'sniper') {
     const sy = sightY + 0.018;
-    add(bgeo(0.02, 0.03, 0.02), metal, 0, railY + 0.02, oz - 0.06);
-    add(bgeo(0.02, 0.03, 0.02), metal, 0, railY + 0.02, oz + 0.06);
+    add(bgeo(0.02, 0.03, 0.02), metal, 0, railY + 0.02 + opticLift, oz - 0.06);
+    add(bgeo(0.02, 0.03, 0.02), metal, 0, railY + 0.02 + opticLift, oz + 0.06);
     add(cgeo(0.016, 0.016, 0.26, 16), metal, 0, sy, oz);
     add(cgeo(0.028, 0.017, 0.08, 16), metal, 0, sy, oz - 0.15);
     add(cgeo(0.022, 0.016, 0.05, 16), metal, 0, sy, oz + 0.14);
@@ -205,30 +276,51 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
   if (att.under) info.leftHand.set(0, -0.06, hz0 - hand * 0.55);
   // 握把
   const gripM = att.rear === 'rubber' ? mat('rubber') : furnBase === mat('gunWood') ? mat('gunPoly') : furnBase;
-  if (M.grip === 'sniper') add(bgeo(0.03, 0.09, 0.045), gripM, 0, -0.035, 0.07, 0.35);
-  else add(bgeo(0.028, 0.095, 0.04), gripM, 0, -0.04, 0.035, 0.3);
-  add(bgeo(0.006, 0.006, 0.07), metal, 0, -0.032, -0.005); // 扳机护圈
+  if (M.grip === 'p90') {
+    // P90 的拇指孔握把：前后两根支柱 + 底部连桥
+    add(bgeo(0.042, 0.095, 0.028), gripM, 0, -0.038, -0.04, 0.15);
+    add(bgeo(0.042, 0.095, 0.028), gripM, 0, -0.038, 0.075, -0.2);
+    add(bgeo(0.044, 0.02, 0.11), gripM, 0, -0.085, 0.018);
+  } else if (M.grip === 'sniper') add(bgeo(0.03, 0.09, 0.045), gripM, 0, -0.035, bullpup ? -0.02 : 0.07, 0.35);
+  else add(bgeo(0.028, 0.095, 0.04), gripM, 0, -0.04, bullpup ? -0.03 : 0.035, bullpup ? 0.18 : 0.3);
+  add(bgeo(0.006, 0.006, 0.07), metal, 0, -0.032, bullpup ? -0.055 : -0.005); // 扳机护圈
   // 弹匣
-  const magG = new THREE.Group(); magG.position.set(0, -0.01, -0.035); root.add(magG);
+  const magG = new THREE.Group();
+  magG.position.set(0, topMag ? railY + 0.033 : -0.01, topMag ? -recv * 0.25 : (bullpup ? 0.14 : -0.035));
+  root.add(magG);
   info.mag = magG;
   const ext = att.mag === 'ext' ? 1.45 : 1;
   const mm = mat('gunMetal');
   if (att.mag === 'drum') {
     add(cgeo(0.075, 0.075, 0.07, 20), mm, 0, -0.1, 0, 0, Math.PI / 2, 0, magG);
     add(bgeo(0.028, 0.06, 0.05), mm, 0, -0.03, 0, 0, 0, 0, magG);
+  } else if (M.mag === 'top') {
+    // P90 顶置 50 发弹匣：横跨枪身顶部
+    add(bgeo(0.05, 0.032, recv * 1.5), mat('gunPoly'), 0, 0, 0, 0, 0, 0, magG);
+    add(bgeo(0.052, 0.006, recv * 1.5), mat('rubber'), 0, 0.019, 0, 0, 0, 0, magG);
   } else if (M.mag === 'straight' || M.mag === 'pistol_long') {
     const L = (M.mag === 'pistol_long' ? 0.15 : 0.17) * ext;
-    add(bgeo(0.026, L, 0.065), M.color === 'tan' && M.mag === 'straight' ? mat('gunTan') : mm, 0, -L / 2, 0, 0.12, 0, 0, magG);
-    if (att.mag === 'fast') add(bgeo(0.026, L, 0.065), mm, 0.03, -L / 2, 0, 0.12, 0, 0, magG);
+    const tilt = bullpup ? -0.06 : 0.12;
+    add(bgeo(0.026, L, 0.065), M.color === 'tan' && M.mag === 'straight' ? mat('gunTan') : mm, 0, -L / 2, 0, tilt, 0, 0, magG);
+    if (att.mag === 'fast') add(bgeo(0.026, L, 0.065), mm, 0.03, -L / 2, 0, tilt, 0, 0, magG);
   } else if (M.mag === 'curved' || M.mag === 'curved_small') {
     const n = Math.round((M.mag === 'curved_small' ? 4 : 5) * ext);
     const seg = 0.04;
-    const magM = weaponId === 'ak' ? mat('containerOrange') : mm;
+    const magM = weaponId === 'ak' || weaponId === 'qbz03' ? mat('containerOrange') : mm;
     for (let i = 0; i < n; i++) {
       const a = i * 0.1 + 0.1;
       add(bgeo(0.026, seg + 0.004, 0.06 - (M.mag === 'curved_small' ? 0.02 : 0)), magM === mm ? mm : mat('gunMetal'), 0, -i * seg * 0.98 - seg / 2, -i * i * 0.004 - i * 0.008, a, 0, 0, magG);
     }
     if (att.mag === 'fast') for (let i = 0; i < n; i++) add(bgeo(0.026, seg + 0.004, 0.06), mm, 0.03, -i * seg * 0.98 - seg / 2, -i * i * 0.004 - i * 0.008, i * 0.1 + 0.1, 0, 0, magG);
+  } else if (M.mag === 'drum') {
+    // 95 班机的圆形弹鼓
+    add(cgeo(0.085, 0.085, 0.065, 20), mat('gunGreen'), 0, -0.09, 0, 0, Math.PI / 2, 0, magG);
+    add(cgeo(0.03, 0.03, 0.075, 16), mm, 0, -0.02, 0, 0, Math.PI / 2, 0, magG);
+  } else if (M.mag === 'belt') {
+    // M249 弹链箱 + 供弹链
+    add(bgeo(0.095, 0.11, 0.135), mat('gunGreen'), -0.05, -0.075, 0, 0, 0, 0, magG);
+    add(bgeo(0.03, 0.02, 0.11), mm, 0.02, 0.03, 0, 0, 0, 0, magG);
+    add(bgeo(0.02, 0.012, 0.1), mat('brass'), 0.01, 0.045, -0.02, 0.5, 0, 0, magG);
   } else if (M.mag === 'box') {
     add(bgeo(0.1, 0.11, 0.12), mat('gunGreen'), -0.03, -0.07, 0, 0, 0, 0, magG);
     add(bgeo(0.03, 0.02, 0.1), mm, 0.02, 0.03, 0, 0, 0, 0, magG);
@@ -243,7 +335,12 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
   // 枪托
   const st = att.stock || null;
   const sz = zRear;
-  if (st === 'none') {
+  if (bullpup) {
+    // 无托布局：机匣直接延伸成一体式枪托
+    add(bgeo(0.05, 0.075, 0.15), furn, 0, 0.025, sz + 0.085);
+    add(bgeo(0.054, 0.1, 0.02), mat('rubber'), 0, 0.012, sz + 0.17);
+    add(bgeo(0.03, 0.014, 0.08), furn, 0, railY + 0.012, sz + 0.05); // 贴腮板
+  } else if (st === 'none') {
     add(bgeo(0.03, 0.04, 0.03), metal, 0, 0.03, sz + 0.015);
   } else {
     const kind = st === 'heavy' ? 'heavy' : st === 'tac' ? 'tac' : M.stock;
@@ -266,6 +363,27 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
       add(bgeo(0.045, 0.06, 0.12), sm, 0, 0.035, sz + 0.06);
       add(bgeo(0.045, 0.11, 0.1), sm, 0, 0.01, sz + 0.17);
       add(bgeo(0.048, 0.12, 0.02), mat('rubber'), 0, 0.01, sz + 0.23);
+    } else if (kind === 'skeleton') {
+      // 191 式镂空枪托：上下两根梁 + 中空 + 橡胶托底
+      add(bgeo(0.042, 0.028, 0.22), sm, 0, 0.052, sz + 0.12);
+      add(bgeo(0.042, 0.024, 0.22), sm, 0, -0.022, sz + 0.12);
+      add(bgeo(0.044, 0.09, 0.018), sm, 0, 0.014, sz + 0.23);
+      add(bgeo(0.048, 0.02, 0.08), sm, 0, 0.062, sz + 0.02);
+      add(bgeo(0.05, 0.11, 0.02), mat('rubber'), 0, 0.012, sz + 0.245);
+    } else if (kind === 'fold') {
+      // 折叠骨架托：两侧细金属管 + 托底板
+      add(bgeo(0.01, 0.012, 0.24), metal, -0.019, 0.045, sz + 0.12);
+      add(bgeo(0.01, 0.012, 0.24), metal, 0.019, 0.045, sz + 0.12);
+      add(bgeo(0.046, 0.085, 0.018), mat('rubber'), 0, 0.02, sz + 0.24);
+      add(bgeo(0.022, 0.02, 0.03), metal, 0, 0.045, sz + 0.015);
+    } else if (kind === 'mp7') {
+      // MP7 短伸缩托
+      add(cgeo(0.009, 0.009, 0.13), metal, -0.016, 0.04, sz + 0.07);
+      add(cgeo(0.009, 0.009, 0.13), metal, 0.016, 0.04, sz + 0.07);
+      add(bgeo(0.04, 0.075, 0.02), mat('rubber'), 0, 0.02, sz + 0.135);
+    } else if (kind === 'p90') {
+      // P90 尾部托垫
+      add(bgeo(0.052, 0.07, 0.02), mat('rubber'), 0, 0.01, sz + 0.02);
     } else if (kind === 'sniper' || kind === 'heavy') {
       add(bgeo(0.05, 0.07, 0.26), sm, 0, 0.01, sz + 0.13);
       add(bgeo(0.05, 0.13, 0.12), sm, 0, -0.01, sz + 0.24);

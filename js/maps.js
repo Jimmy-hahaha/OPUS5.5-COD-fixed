@@ -216,6 +216,265 @@ export const MAPS = {
     },
   },
 
+  // ================= 边境机场 =================
+  // 400×400，面积约为寒霜炼厂（120×120）的 11 倍；三条进攻轴线：跑道 / 航站楼 / 货运区
+  airfield: {
+    id: 'airfield', name: '边境机场', size: 400, seed: 61, surface: 'sand', styles: ['ally', 'enemy'],
+    env: { sky: 'day', sunDir: [-0.7, 0.28, 0.3], sunColor: 0xffd6a8, sun: 2.6, hemi: 0.75, sky2: 0x9fb8d8, ground: 0x7a6a52, fog: 0xc8b8a4, fogDensity: 0.0026, turbidity: 7, rayleigh: 2.4, mie: 0.008, exposure: 0.88, mountains: 'sand', envIntensity: 0.7, weather: 'dust', ambient: 'wind' },
+    build(w) {
+      w.ground('sand');
+      w.bounds();
+      const r = mulberry32(61);
+
+      // ---------- 场地 ----------
+      // 主跑道（东西向）
+      w.box(-5, 0, 10, 310, 0.04, 26, 'asphalt', { collide: false });
+      // 滑行道
+      w.box(-15, 0, 41, 270, 0.04, 10, 'asphalt', { collide: false });
+      // 联络道
+      w.box(66, 0, 28, 12, 0.04, 28, 'asphalt', { collide: false });
+      w.box(-120, 0, 28, 12, 0.04, 28, 'asphalt', { collide: false });
+      // 航站楼前广场 / 机库坪 / 货运坪
+      w.box(10, 0, 79, 110, 0.04, 58, 'concrete', { collide: false });
+      w.box(-85, 0, -38, 122, 0.04, 44, 'concrete', { collide: false });
+      w.box(137, 0, 44, 88, 0.04, 82, 'concrete', { collide: false });
+      // 跑道中线与端头标线
+      for (let x = -155; x <= 140; x += 20) w.box(x, 0.05, 10, 10, 0.01, 0.7, 'whitePaint', { collide: false });
+      for (const ex of [-158, 147]) {
+        for (let i = -3; i <= 3; i++) w.box(ex, 0.05, 10 + i * 3.2, 5, 0.01, 1.2, 'whitePaint', { collide: false });
+      }
+      // 围墙
+      w.box(0, 0, -198, 396, 2.4, 0.5, 'concreteDark');
+      w.box(0, 0, 198, 396, 2.4, 0.5, 'concreteDark');
+      w.box(-198, 0, 0, 0.5, 2.4, 396, 'concreteDark');
+      w.box(198, 0, 0, 0.5, 2.4, 396, 'concreteDark');
+
+      // ---------- 航站楼 ----------
+      w.building(10, 118, 96, 24, 8, {
+        mat: 'concrete', roofMat: 'concreteDark', parapet: false, floor: 'tiles', light: 0xffd9a0,
+        doors: { n: [-34, 0, 34], s: [-26, 26] },
+        windows: { n: [-44, -22, -11, 11, 22, 44], s: [-38, 0, 38], e: [0], w: [0] },
+      });
+      // 屋顶女儿墙（东侧留空给楼梯）
+      w.box(10, 8.3, 105.85, 96.4, 0.6, 0.3, 'plasterWhite');
+      w.box(10, 8.3, 130.15, 96.4, 0.6, 0.3, 'plasterWhite');
+      w.box(-38.25, 8.3, 118, 0.3, 0.6, 24.2, 'plasterWhite');
+      // 屋顶设备掩体
+      w.box(-18, 8.3, 118, 4.5, 1.3, 3.2, 'metal');
+      w.box(22, 8.3, 114, 3, 1.1, 2.4, 'concreteDark');
+      // 屋顶中控楼
+      w.box(10, 8.3, 118, 28, 3.4, 16, 'plasterWhite');
+      w.box(10, 9.4, 109.95, 24, 1.4, 0.1, 'windowDark', { collide: false });
+      w.box(10, 9.4, 126.05, 24, 1.4, 0.1, 'windowLit', { collide: false });
+      // 航站楼幕墙（门洞上方）与入口标识
+      for (let x = -34; x <= 54; x += 8) {
+        w.box(x, 3.2, 105.7, 7.4, 3.4, 0.12, (x > -18 && x < 38 ? 'windowDark' : 'windowLit'), { collide: false });
+        w.box(x - 3.7, 3.2, 105.66, 0.35, 3.4, 0.16, 'darkMetal', { collide: false });
+      }
+      w.box(10, 3.05, 105.68, 96, 0.3, 0.16, 'darkMetal', { collide: false });
+      w.box(10, 6.75, 105.68, 96, 0.3, 0.16, 'darkMetal', { collide: false });
+      w.box(10, 7.1, 105.62, 20, 0.9, 0.2, 'darkMetal', { collide: false });
+      w.box(10, 7.1, 105.5, 15, 0.28, 0.22, 'lampCold', { collide: false });
+      // 内部隔断
+      w.wall(-38, 118, 58, 118, 8, 0.3, 'plasterWhite', [{ c: 24, w: 5, y0: 0, y1: 3 }, { c: 62, w: 4, y0: 0, y1: 3 }]);
+      w.wall(-26, 106, -26, 130, 8, 0.3, 'plasterWhite', [{ c: 12, w: 4, y0: 0, y1: 3 }]);
+      w.wall(40, 106, 40, 130, 8, 0.3, 'plasterWhite', [{ c: 12, w: 4, y0: 0, y1: 3 }]);
+      w.box(-10, 0, 115, 18, 1.1, 1.4, 'wood');
+      w.box(24, 0, 115, 18, 1.1, 1.4, 'wood');
+      w.box(-8, 0, 126, 2, 1.8, 3, 'wood'); w.crateStack(30, 126);
+      w.box(45, 0, 111, 3, 2.2, 1.2, 'containerGray');
+      // 屋顶楼梯
+      w.stairs(63, 118, 3, 10, 8, 'w');
+      // 门口雨棚与车辆
+      w.awning(10, 101, 26, 8, 4.6, 'tarp', 0);
+      w.car(-30, 98, Math.PI / 2, 0x223344); w.car(48, 98, -Math.PI / 2, 0x6a2020);
+      w.truck(78, 90, Math.PI / 2, 0x8a8f94); w.truckCollider(78, 90, Math.PI / 2);
+      w.sandbags(-14, 105, 5, 0); w.sandbags(30, 105, 5, 0);
+      w.lampPost(-24, 92, 0xffd8a0, Math.PI / 2, 12);      // ---------- 机库区 ----------
+      const hangar = (cx, cz, wid, dep, h, matName) => {
+        const x0 = cx - wid / 2, x1 = cx + wid / 2, z0 = cz - dep / 2, z1 = cz + dep / 2;
+        w.box(cx, h, cz, wid + 1.2, 0.5, dep + 1.2, 'metalRoof');
+        w.wall(x0, z0, x0, z1, h, 0.45, matName);
+        w.wall(x1, z0, x1, z1, h, 0.45, matName);
+        w.wall(x0, z0, x1, z0, h, 0.45, matName);
+        // 前脸（朝跑道一侧）留出大开口
+        w.box(x0 + 1.2, 0, z1, 2.4, h, 0.45, matName);
+        w.box(x1 - 1.2, 0, z1, 2.4, h, 0.45, matName);
+        w.box(cx, h - 0.8, z1, wid, 0.8, 0.45, matName);
+      };
+      hangar(-120, -58, 44, 46, 9, 'metal');
+      hangar(-66, -58, 42, 46, 9, 'containerGray');
+      // 机库内 / 周围
+      w.container(-126, -48, 0, 'containerBlue');
+      w.container(-114, -48, 0, 'containerGreen');
+      w.crateStack(-132, -66); w.crateStack(-108, -70);
+      w.truck(-78, -52, Math.PI / 2, 0x4a5a3a); w.truckCollider(-78, -52, Math.PI / 2);
+      w.box(-92, 0, -34, 3, 2.4, 2, 'containerOrange');
+      w.sandbags(-96, -30, 7, 0);
+      w.sandbags(-42, -30, 5, 0);
+      w.barrel(-58, -34, 'containerRed'); w.barrel(-57.2, -33.4, 'containerBlue');
+      // 维修车间
+      w.building(-25, -64, 16, 14, 4.2, { mat: 'brickDark', doors: { s: [0], e: [0] }, windows: { s: [-4, 4] }, floor: 'concrete' });
+      w.crateStack(-36, -60); w.crateStack(-14, -58);
+
+      // ---------- 塔台 ----------
+      w.box(100, 0, -86, 8, 10, 8, 'concrete');
+      w.box(100, 10, -86, 13, 0.35, 13, 'darkMetal');
+      w.box(100, 10.35, -86, 8, 4, 8, 'concreteDark');
+      for (const [wx, wz, ww, wd] of [[100, -90.05, 6.4, 0.12], [100, -81.95, 6.4, 0.12], [96.05, -86, 0.12, 6.4], [103.95, -86, 0.12, 6.4]]) {
+        w.box(wx, 11.3, wz, ww, 1.5, wd, 'windowLit', { collide: false });
+      }
+      w.box(100, 14.35, -86, 9, 0.4, 9, 'metalRoof');
+      w.box(100, 14.75, -86, 0.22, 6, 0.22, 'darkMetal');
+      w.stairs(100, -73, 3, 13, 10, 'n');
+      w.sandbags(96, -94, 4, 0); w.sandbags(104, -94, 4, 0);
+
+      // ---------- 北侧兵营与车库 ----------
+      w.box(-95, 0, -105, 9, 0.02, 64, 'asphalt', { collide: false });
+      w.box(-70, 0, -122, 60, 0.02, 9, 'asphalt', { collide: false });
+      w.building(-118, -138, 30, 13, 6, { mat: 'plaster', roofMat: 'concreteDark', doors: { e: [-3, 3], s: [0] }, windows: { s: [-8, 0, 8], n: [-8, 8] }, parapet: true, floor: 'tiles' });
+      w.building(-76, -138, 22, 12, 5.2, { mat: 'brick', doors: { w: [0], s: [-4] }, windows: { s: [4], n: [-4, 4] }, parapet: true, floor: 'tiles' });
+      w.building(-40, -150, 20, 14, 5, { mat: 'metal', roofMat: 'metalRoof', doors: { s: [0] }, windows: { s: [-6, 6] }, floor: 'concrete' });
+      w.tent(-104, -120, 4, 6, 0); w.tent(-96, -120, 4, 6, 0);
+      w.crateStack(-100, -152); w.crateStack(-60, -154);
+      w.truck(-30, -120, Math.PI / 2, 0x4a5a3a); w.truckCollider(-30, -120, Math.PI / 2);
+      w.truck(-16, -120, Math.PI / 2, 0x6a5a40); w.truckCollider(-16, -120, Math.PI / 2);
+      w.sandbags(-56, -128, 8, 0);
+      w.wall(-132, -162, -8, -162, 2.2, 0.4, 'concreteDark', [{ c: 28, w: 6 }, { c: 92, w: 6 }]);
+
+      // ---------- 东北雷达站 ----------
+      w.box(126, 0, -144, 58, 0.04, 50, 'concrete', { collide: false });
+      w.building(106, -160, 16, 10, 4, { mat: 'plasterWhite', doors: { s: [0] }, windows: { s: [-4, 4] }, floor: 'concrete' });
+      w.box(132, 0, -145, 2, 12, 2, 'darkMetal');
+      w.box(132, 12, -145, 8, 0.5, 8, 'darkMetal');
+      w.mesh(new THREE.BoxGeometry(7, 4.5, 0.4), 'metal', 132, 14.2, -145);
+      w.mesh(new THREE.CylinderGeometry(0.4, 0.4, 3.4, 8), 'darkMetal', 132, 12.4, -145);
+      w.box(140, 0, -152, 3, 2, 3, 'containerBlue');
+      w.sandbags(118, -132, 7, 0);
+      w.crateStack(112, -138);
+
+      // ---------- 南侧仓储区 ----------
+      w.box(-50, 0, 160, 74, 0.03, 42, 'asphalt', { collide: false });
+      w.box(10, 0, 141, 9, 0.02, 24, 'dirt', { collide: false });
+      w.building(-50, 168, 44, 16, 7, { mat: 'containerGray', roofMat: 'metalRoof', doors: { n: [-8, 8] }, windows: { n: [-16, 16] }, floor: 'concrete' });
+      w.building(52, 162, 22, 16, 5, { mat: 'brick', doors: { n: [0] }, windows: { n: [-6, 6] }, parapet: true, floor: 'tiles' });
+      for (const [x, z] of [[-104, 150], [-72, 150], [-8, 152], [24, 172], [76, 150]]) w.container(x, z, 0, ['containerRed', 'containerBlue', 'containerGreen', 'containerOrange', 'containerGray'][(Math.abs(x) / 2 | 0) % 5]);
+      w.truck(-92, 176, Math.PI / 2, 0xb8b0a0); w.truckCollider(-92, 176, Math.PI / 2);
+      w.crateStack(-24, 176); w.sandbags(2, 148, 6, 0);
+
+      // ---------- 燃料库（西） ----------
+      w.tank(-160, 55, 6.5, 11, 'metal');
+      w.tank(-140, 78, 5.5, 9, 'metal');
+      w.tank(-173, 88, 5, 8, 'metal');
+      w.pipe(-160, 55, -140, 78, 4, 0.32);
+      w.pipe(-160, 55, -173, 88, 3.2, 0.28);
+      // 防火堤
+      w.wall(-186, 36, -112, 36, 1.2, 0.5, 'concrete', [{ c: 40, w: 6, y0: 0, y1: 1.2 }]);
+      w.wall(-186, 112, -112, 112, 1.2, 0.5, 'concrete', [{ c: 20, w: 5, y0: 0, y1: 1.2 }, { c: 56, w: 5, y0: 0, y1: 1.2 }]);
+      w.wall(-186, 36, -186, 112, 1.2, 0.5, 'concrete');
+      w.wall(-112, 36, -112, 112, 1.2, 0.5, 'concrete', [{ c: 30, w: 7, y0: 0, y1: 1.2 }]);
+      w.truck(-125, 48, 0.2, 0xb8b0a0); w.truckCollider(-125, 48, 0.2);
+      w.barrel(-146, 66, 'containerRed'); w.barrel(-145.2, 66.6, 'containerRed');
+      w.barrel(-155, 96, 'burnt');
+      w.crateStack(-132, 100); w.sandbags(-120, 60, 6, Math.PI / 2);
+
+      // ---------- 货运区（东） ----------
+      const cols = ['containerRed', 'containerBlue', 'containerGreen', 'containerOrange', 'containerGray', 'containerYellow'];
+      const crates = [
+        [104, 16, 0], [111, 16, 0], [104, 23, 0], [118, 16, 0],
+        [104, 62, Math.PI / 2], [111, 62, Math.PI / 2], [104, 69, Math.PI / 2],
+        [142, 18, 0], [149, 18, 0], [142, 25, 0], [156, 18, 0],
+        [156, 62, Math.PI / 2], [163, 62, Math.PI / 2], [156, 69, Math.PI / 2],
+        [174, 32, 0], [174, 39, 0],
+      ];
+      crates.forEach(([x, z, rot], i) => w.container(x, z, rot, cols[i % cols.length]));
+      // 双层堆叠
+      w.container(111, 16, 0, 'containerYellow', 2.6);
+      w.container(149, 18, 0, 'containerGreen', 2.6);
+      w.crateStack(125, 34); w.crateStack(132, 55);
+      // 龙门吊
+      for (const gx of [102, 172]) {
+        for (const gz of [8, 80]) w.box(gx, 0, gz, 1, 14, 1, 'yellowPaint');
+        w.box(gx, 14, 44, 1.2, 1.2, 74, 'yellowPaint', { collide: false });
+      }
+      w.box(137, 14, 44, 74, 1.2, 1.2, 'yellowPaint', { collide: false });
+      w.lampPost(128, 78, 0xffd8a0, Math.PI, 14);
+
+      // ---------- 坠机残骸（中央地标） ----------
+      const fus = w.mesh(new THREE.CylinderGeometry(2.1, 1.3, 30, 16), 'burnt', -40, 3.2, 10);
+      fus.rotation.z = Math.PI / 2;
+      const wing = w.mesh(new THREE.BoxGeometry(9, 0.5, 34), 'containerGray', -40, 2.4, 10);
+      const tail = w.mesh(new THREE.BoxGeometry(5, 5.5, 0.5), 'containerGray', -56, 5.2, 10);
+      tail.rotation.z = 0.5;
+      w.collider(-56, 0, 7, -24, 4.6, 13);
+      w.collider(-45, 1.9, -7, -35, 2.9, 27);
+      w.crateStack(-30, 23); w.barrel(-50, 22, 'burnt', true);
+      w.box(-46, 0, -2, 3.4, 1.4, 2.6, 'burnt', { rotY: 0.4 });
+      w.box(-20, 0, 10, 2, 0.8, 6, 'darkMetal', { rotY: 0.2 });
+
+      // ---------- 掩体与载具 ----------
+      for (const x of [-135, -105, -75, -10, 25, 60, 95, 125]) w.jersey(x, 26, Math.PI / 2);
+      for (const x of [-120, -45, 20, 85]) w.sandbags(x, -6, 5, 0);
+      w.jersey(-145, 50); w.jersey(120, 52);
+      w.car(-90, 4, 0.1, 0x2a3a4a); w.car(30, 46, Math.PI / 2, 0x5a2a2a);
+      w.box(-175, 0, -20, 4, 2.6, 4, 'containerGray');
+      w.box(176, 0, 20, 4, 2.6, 4, 'containerBlue');
+
+      // ---------- 检查站 ----------
+      for (const [gx, gz] of [[-170, 68], [168, 68]]) {
+        w.building(gx, gz, 7, 5, 3, { mat: 'concreteDark', doors: { s: [0] }, windows: { s: [-2, 2] }, floor: 'concrete' });
+        w.sandbags(gx - 6, gz + 5, 5, 0);
+        w.barrier(gx + 5, gz + 4); w.barrier(gx + 6.8, gz + 4);
+      }
+      w.watchtower(-176, 30, 4);
+      w.watchtower(176, -30, 4);
+
+      // ---------- 停机坪上的运输机 ----------
+      w.mesh(new THREE.CylinderGeometry(1.9, 1.5, 30, 16), 'containerGray', 30, 3.1, 66).rotation.z = Math.PI / 2;
+      w.mesh(new THREE.BoxGeometry(7, 0.4, 30), 'containerGray', 30, 2.2, 66);
+      w.mesh(new THREE.BoxGeometry(4, 5, 0.4), 'containerGray', 16, 5, 66).rotation.z = 0.45;
+      for (const dx of [24, 36]) {
+        w.mesh(new THREE.CylinderGeometry(0.9, 0.9, 3.4, 10), 'darkMetal', dx, 1.9, 58).rotation.x = Math.PI / 2;
+        w.mesh(new THREE.CylinderGeometry(0.9, 0.9, 3.4, 10), 'darkMetal', dx, 1.9, 74).rotation.x = Math.PI / 2;
+      }
+      w.collider(15, 0, 63.5, 45, 4.8, 68.5);
+      w.collider(26, 1.8, 51, 34, 2.7, 81);
+
+      // ---------- 出生区营地 ----------
+      for (const sx of [-1, 1]) {
+        const px = sx * 176;
+        w.tent(px, -16, 4, 6, 0);
+        w.tent(px, 16, 4, 6, 0);
+        w.sandbags(px + sx * 4, 0, 6, Math.PI / 2);
+        w.crateStack(px - sx * 6, -28);
+        w.crateStack(px - sx * 6, 28);
+        w.box(px, 0, 38, 3, 1.1, 2.5, 'wood');
+      }
+
+      // ---------- 植被与岩石 ----------
+      const palms = [[-46, 100], [62, 102], [-170, 20], [180, -18], [-60, 92], [80, 108]];
+      palms.forEach(([x, z], i) => w.tree(x, z, 0.95 + (i % 3) * 0.12, 'palm'));
+      for (let i = 0; i < 26; i++) {
+        const a = r() * Math.PI * 2, d = 165 + r() * 28;
+        const x = Math.cos(a) * d, z = Math.sin(a) * d;
+        if (Math.abs(x) > 186 || Math.abs(z) > 186) continue;
+        w.tree(x, z, 0.7 + r() * 0.5, r() < 0.5 ? 'broad' : 'pine');
+      }
+      for (let i = 0; i < 18; i++) {
+        const a = r() * Math.PI * 2, d = 178 + r() * 16;
+        const x = Math.cos(a) * d, z = Math.sin(a) * d;
+        if (Math.abs(x) > 194 || Math.abs(z) > 194) continue;
+        w.rock(x, z, 0.9 + r() * 1.4, 'rock');
+      }
+      w.rock(-110, 108, 1.6); w.rock(96, -112, 1.4); w.rock(118, 104, 1.2);
+
+      // ---------- 刷新点 / 据点 ----------
+      w.spawns.A = [V(-184, -30), V(-184, -15), V(-184, 0), V(-184, 15), V(-184, 30), V(-170, -50), V(-170, 50)];
+      w.spawns.B = [V(184, -30), V(184, -15), V(184, 0), V(184, 15), V(184, 30), V(170, -50), V(170, 50)];
+      w.flagPos = [V(-150, 62), V(0, 10), V(140, 42)];
+    },
+  },
+
   // ================= 战役：卡尔达什 =================
   kaldash: {
     id: 'kaldash', name: '卡尔达什村', size: 200, seed: 51, surface: 'dirt', night: true, styles: ['ally', 'insurgent'],

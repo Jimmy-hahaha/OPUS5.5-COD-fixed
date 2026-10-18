@@ -229,10 +229,20 @@ export class HUD {
     ctx.fillStyle = 'rgba(20,24,20,.6)'; ctx.fillRect(0, 0, S, S);
     ctx.translate(S / 2, S / 2);
     ctx.rotate(pl.yaw);
-    const k = world.topK;
-    const sz = world.def.size * scale;
+    // 只取玩家周围 90m 的地图区域绘制：400m 大地图不必每帧把整张俯视图放大
+    const src = world.topDown;
+    const mpp = src.width / world.def.size;
+    const sx = (pl.pos.x + world.half) * mpp - R * mpp;
+    const sy = (pl.pos.z + world.half) * mpp - R * mpp;
+    const sw = R * 2 * mpp;
+    const cx0 = Math.max(0, sx), cy0 = Math.max(0, sy);
+    const cx1 = Math.min(src.width, sx + sw), cy1 = Math.min(src.height, sy + sw);
     ctx.globalAlpha = 0.9;
-    ctx.drawImage(world.topDown, (-pl.pos.x - world.half) * scale, (-pl.pos.z - world.half) * scale, sz, sz);
+    if (cx1 > cx0 && cy1 > cy0) {
+      ctx.drawImage(src, cx0, cy0, cx1 - cx0, cy1 - cy0,
+        (cx0 - sx) / mpp * scale - R * scale, (cy0 - sy) / mpp * scale - R * scale,
+        (cx1 - cx0) / mpp * scale, (cy1 - cy0) / mpp * scale);
+    }
     ctx.globalAlpha = 1;
     const dot = (x, z, color, r = 4, tri = false, yaw = 0) => {
       const px = (x - pl.pos.x) * scale, pz = (z - pl.pos.z) * scale;
