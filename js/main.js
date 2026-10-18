@@ -16,6 +16,8 @@ import { Audio } from './audio.js';
 import { HUD } from './hud.js';
 import { Menu } from './menu.js';
 import { MPMatch } from './mp.js';
+import { NetMatch } from './netmatch.js';
+import { Net } from './net.js';
 import { Campaign } from './campaign.js';
 import { buildGun } from './gunmodel.js';
 import { DEFAULT_CLASSES, DEFAULT_STREAKS } from './data.js';
@@ -64,6 +66,7 @@ class Game {
     this.entities = []; this.bots = []; this.projectiles = []; this.pickups = []; this.noises = [];
     this.mat = mat;
     this.input = { keys: {}, pressed: {}, mdx: 0, mdy: 0, buttons: 0, wheel: 0 };
+    this.net = new Net(this);   // 局域网联机
   }
   saveProfile() { localStorage.setItem('mf_profile', JSON.stringify(this.profile)); }
   saveSettings() { localStorage.setItem('mf_settings', JSON.stringify(this.settings)); }
@@ -277,6 +280,9 @@ class Game {
     if (kind === 'mp') {
       this.loadMap(cfg.map);
       this.mode = new MPMatch(this, cfg);
+    } else if (kind === 'net') {
+      this.loadMap(cfg.map);
+      this.mode = new NetMatch(this, cfg);
     } else {
       this.loadMap('kaldash');
       this.mode = new Campaign(this, cfg);
@@ -297,12 +303,23 @@ class Game {
     this.hud.show(false); this.hud.showScoreboard(false);
     document.getElementById('deathScreen').classList.add('hidden');
     if (document.pointerLockElement) document.exitPointerLock();
-    this.menu.showMain();
+    // 联机对局退出后回到联机房间界面（房间仍在服务器上保留）
+    if (this.net && this.net.room) this.menu.showNetRoom();
+    else this.menu.showMain();
   }
 
   // ---------- 事件 ----------
   onKill(killer, victim, weapon, head, info) {
     if (this.mode && this.mode.onKill) this.mode.onKill(killer, victim, weapon, head, info || {});
+  }
+  // 局域网联机广播钩子（由 WeaponSystem 调用）
+  onNetShot(origin, dir, tr, st) {
+    const m = this.mode;
+    if (m && m.netShot) m.netShot(origin, dir, tr, st);
+  }
+  onNetNade(type, pos, vel, fuse) {
+    const m = this.mode;
+    if (m && m.netNade) m.netNade(type, pos, vel, fuse);
   }
   makeNoise(pos, r, team, footstep = false) {
     this.noises.push({ pos: pos.clone(), r, team, t: this.time, footstep });
@@ -330,13 +347,22 @@ class Game {
     if (this.thermalOn === on) return;
     this.thermalOn = on;
     this.grade.uniforms.thermal.value = on ? 1 : 0;
-    for (const b of this.bots) {
-      b.model.root.traverse(o => {
-        if (o.isMesh && o.material && o.material.emissive) {
-          if (on) { o.userData.em = o.userData.em || [o.material.emissive.getHex(), o.material.emissiveIntensity]; o.material.emissive.setHex(0xffffff); o.material.emissiveIntensity = b.alive ? 3 : 0.8; }
-          else if (o.userData.em) { o.material.emissive.setHex(o.userData.em[0]); o.material.emissiveIntensity = o.userData.em[1]; }
-        }
-      });
+    if (!this._thermalMats) this._thermalMats = new Map();
+    if (on) {
+      // 士兵材质是跨模型共享的，必须按材质记录原始自发光；
+      // 若按 mesh 记录，后面的 mesh 会把已改白的值当成原色，关闭热成像后永远恢复不了
+      for (const b of this.bots) {
+        b.model.root.traverse(o => {
+          if (!o.isMesh || !o.material) return;
+          for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
+            if (m.emissive && !this._thermalMats.has(m)) this._thermalMats.set(m, [m.emissive.getHex(), m.emissiveIntensity]);
+          }
+        });
+      }
+      for (const m of this._thermalMats.keys()) { m.emissive.setHex(0xffffff); m.emissiveIntensity = 3; }
+    } else {
+      for (const [m, em] of this._thermalMats) { m.emissive.setHex(em[0]); m.emissiveIntensity = em[1]; }
+      this._thermalMats.clear();
     }
   }
 
@@ -371,6 +397,8 @@ class Game {
         const k = this.deathKiller;
         if (k && k.pos) { const tgt = k.pos.clone(); tgt.y += 1.2; const m = new THREE.Matrix4().lookAt(cam.position, tgt, new THREE.Vector3(0, 1, 0)); const q = new THREE.Quaternion().setFromRotationMatrix(m); cam.quaternion.slerp(q, 1 - Math.exp(-2 * dt)); }
         this.audio.setListener(cam.position, pl.yaw);
+        // 死亡时强制退出倍镜状态：否则热成像滤镜/镜圈遮罩会一直停在死亡画面上
+        this.scopeState = null;
       }
       // NVG
       if (inp.nvgPressed && this.mode && this.mode.nvgAvailable) {

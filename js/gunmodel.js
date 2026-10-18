@@ -9,9 +9,9 @@ function bgeo(w, h, d) {
   if (!geoCache.has(k)) geoCache.set(k, new THREE.BoxGeometry(w, h, d));
   return geoCache.get(k);
 }
-function cgeo(r1, r2, len, seg = 14) {
-  const k = `c${r1},${r2},${len},${seg}`;
-  if (!geoCache.has(k)) { const g = new THREE.CylinderGeometry(r1, r2, len, seg); g.rotateX(Math.PI / 2); geoCache.set(k, g); }
+function cgeo(r1, r2, len, seg = 14, open = false) {
+  const k = `c${r1},${r2},${len},${seg},${open ? 1 : 0}`;
+  if (!geoCache.has(k)) { const g = new THREE.CylinderGeometry(r1, r2, len, seg, 1, open); g.rotateX(Math.PI / 2); geoCache.set(k, g); }
   return geoCache.get(k);
 }
 
@@ -146,11 +146,17 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
   info.optic = optic || 'iron';
   const oz = zRear - recv * 0.45;
   if (optic === 'reddot') {
-    add(bgeo(0.03, 0.012, 0.04), metal, 0, railY + 0.018, oz);
-    add(cgeo(0.02, 0.02, 0.04, 16), metal, 0, sightY, oz);
-    add(new THREE.CircleGeometry(0.017, 16), mat('lens'), 0, sightY, oz - 0.021);
-    info.reticle = add(new THREE.CircleGeometry(0.0009, 10), mat('reticle'), 0, sightY, oz - 0.022);
-    info.sight.set(0, sightY, oz + 0.1);
+    // 与手枪红点同款：开放式框架 + 小镜片（镜筒会在 ADS 时形成一圈黑边）
+    const ry = sightY + 0.002;
+    add(bgeo(0.032, 0.008, 0.045), metal, 0, railY + 0.016, oz);
+    add(bgeo(0.005, 0.038, 0.014), metal, -0.019, ry, oz - 0.016);
+    add(bgeo(0.005, 0.038, 0.014), metal, 0.019, ry, oz - 0.016);
+    add(bgeo(0.043, 0.005, 0.014), metal, 0, ry + 0.0215, oz - 0.016);
+    add(new THREE.PlaneGeometry(0.032, 0.03), mat('lens'), 0, ry, oz - 0.016);
+    // 红点贴在镜片后面，按瞄具到眼睛的距离等比缩小，和手枪红点观感一致
+    info.reticle = add(new THREE.CircleGeometry(0.00045, 10), mat('reticle'), 0, ry, oz - 0.017);
+    info.reticle.renderOrder = 10;
+    info.sight.set(0, ry, oz + 0.1);
   } else if (optic === 'holo') {
     add(bgeo(0.04, 0.016, 0.07), metal, 0, railY + 0.02, oz);
     add(bgeo(0.005, 0.04, 0.05), metal, -0.021, sightY + 0.005, oz - 0.01);
@@ -160,6 +166,8 @@ export function buildGun(weaponId, att = {}, camo = 'none', opts = {}) {
     const ret = new THREE.Group(); ret.position.set(0, sightY, oz - 0.031); root.add(ret);
     add(new THREE.RingGeometry(0.0045, 0.0052, 24), mat('reticle'), 0, 0, 0, 0, 0, 0, ret);
     add(new THREE.CircleGeometry(0.0007, 8), mat('reticle'), 0, 0, 0, 0, 0, 0, ret);
+    // 最后绘制，避免被半透明镜片压暗；depthTest 仍开启，镜框可正常遮挡
+    ret.traverse(o => { if (o.isMesh) o.renderOrder = 10; });
     info.reticle = ret;
     info.sight.set(0, sightY, oz + 0.12);
   } else if (optic === 'acog' || optic === 'thermal') {

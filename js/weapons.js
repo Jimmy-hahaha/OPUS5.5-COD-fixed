@@ -187,16 +187,19 @@ export class WeaponSystem {
     if (st.projectile === 'rocket') {
       const p = new Projectile(game, 'rocket', origin.clone().addScaledVector(fwd, 0.8), fwd.clone().multiplyScalar(55), pl, 10);
       game.projectiles.push(p);
+      if (game.onNetNade) game.onNetNade('rocket', p.pos, p.vel, 10);
     } else {
       const spread = this.currentSpread() * DEG * 0.5;
-      let anyHit = false, kill = false, head = false;
+      let anyHit = false, kill = false, head = false, rHit = null;
       for (let i = 0; i < st.pellets; i++) {
         const d = spreadDir(fwd, spread, new THREE.Vector3());
         const r = fireHitscan(game, pl, origin, d, st, st.name);
+        if (i === 0) rHit = r;
         if (r.ent) { anyHit = true; if (r.killed) kill = true; if (r.part === 'head') head = true; }
         if (i < 3 && (this.shotsInRow % 2 === 1 || st.pellets > 1 || st.fire !== 'auto')) game.effects.tracer(muzzleW.clone().addScaledVector(fwd, 0.5), r.point, [1.4, 1.0, 0.55]);
       }
       if (anyHit) { pl.stats.hits++; game.hud.hitmarker(kill, head); game.audio.hit(kill, head); }
+      if (game.onNetShot) game.onNetShot(origin, fwd, rHit ? Math.min(120, rHit.t) : 60, st);
     }
     // 特效
     this.flashT = 0.035;
@@ -289,6 +292,7 @@ export class WeaponSystem {
     const pos = cam.position.clone().addScaledVector(fwd, 0.4).add(new THREE.Vector3(0, -0.1, 0));
     const vel = inHand ? new THREE.Vector3() : fwd.clone().multiplyScalar(17).add(new THREE.Vector3(0, 3.5, 0)).add(pl.vel.clone().multiplyScalar(0.5));
     game.projectiles.push(new Projectile(game, g.type, pos, vel, pl, fuse));
+    if (game.onNetNade) game.onNetNade(g.type, pos, vel, fuse);
     if (inHand) { this.state = 'idle'; }
   }
 

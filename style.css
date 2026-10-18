@@ -274,3 +274,13 @@ html, body { position: fixed; inset: 0; }
 #clickToPlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.35); font-size: 22px; letter-spacing: 6px; cursor: pointer; }
 .kbd { display: inline-block; border: 1px solid #888; padding: 0 6px; font-size: 12px; border-radius: 2px; margin: 0 2px; }
 ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #444; }
+
+/* 局域网联机 */
+.netroom { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); margin-bottom: 8px; cursor: pointer; transition: all .15s; font-size: 15px; }
+.netroom:hover { background: rgba(255,255,255,.1); border-color: var(--acc); }
+.netroom.playing { opacity: .75; }
+.netroom b { color: #fff; letter-spacing: 1px; }
+.netmsg { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); background: rgba(20,24,28,.95); border: 1px solid var(--acc); color: #fff; font-size: 13px; letter-spacing: 1px; padding: 8px 20px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 60; }
+.netmsg.show { opacity: 1; }
+.segnet div { padding: 7px 14px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); cursor: pointer; font-size: 13px; margin-right: -1px; }
+.segnet div.sel { background: rgba(212,242,74,.16); color: var(--acc); border-color: var(--acc); }

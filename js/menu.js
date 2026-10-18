@@ -6,6 +6,9 @@ import { buildGun } from './gunmodel.js';
 import { createSoldierModel, animateSoldier } from './soldier.js';
 import { mat, camoSwatch } from './materials.js';
 import { damp, fmtTime } from './util.js';
+import { buildNetCfg } from './netmatch.js';
+
+const NET_MODE_NAMES = { tdm: '团队死斗', dom: '占领', ffa: '自由混战' };
 
 const DIFF_NAMES = ['新兵', '正规军', '老兵'];
 const MAX_ATT = 5;
@@ -65,6 +68,14 @@ export class Menu {
     window.addEventListener('pointermove', e => { if (drag) { this.gunRotY += (e.clientX - drag.x) * 0.01; this.gunRotX = Math.max(-0.6, Math.min(0.6, this.gunRotX + (e.clientY - drag.y) * 0.006)); drag.x = e.clientX; drag.y = e.clientY; } });
     window.addEventListener('pointerup', () => { drag = null; });
     this.el.addEventListener('wheel', e => { if (this.screen === 'gunsmith') { this.gsZoom = Math.max(0.8, Math.min(2.2, (this.gsZoom || 1.45) + Math.sign(e.deltaY) * 0.1)); this.camTarget.pos.z = this.gsZoom; } }, { passive: true });
+    // 局域网联机：对局控制信号（任何界面下收到即开局）
+    game.net.on('start', cfg => this.game.startGame('net', cfg));
+    game.net.on('err', msg => { if (this.screen === 'netLobby' || this.screen === 'netRoom') this.showNetMsg(msg); });
+    game.net.on('lobby', room => {
+      if (this.screen === 'netRoom') this.showNetRoom();
+      else if (this.screen === 'netLobby' && this._netWantRoom) { this._netWantRoom = false; this.showNetRoom(); }
+    });
+    game.net.on('closed', () => { if (this.screen === 'netRoom' || this.screen === 'netLobby') this.showNetMsg('与服务器连接已断开'); });
   }
 
   // ---------------- 3D 场景 ----------------
@@ -222,6 +233,7 @@ export class Menu {
         <div class="menu-sub">MODERN FRONTLINE</div>
         <div class="mbtn" data-a="campaign"><div class="ico">◈</div><div><div class="mt">战役</div><div class="md">行动代号：午夜清道夫 ${best ? '· 最佳 ' + fmtTime(best) : ''}</div></div></div>
         <div class="mbtn" data-a="mp"><div class="ico">⚔</div><div><div class="mt">多人对战</div><div class="md">团队死斗 · 占领 · 自由混战（对战AI）</div></div></div>
+        <div class="mbtn" data-a="net"><div class="ico">⇄</div><div><div class="mt">局域网联机</div><div class="md">和人玩 · 同一局域网 · TDM / 占领 / 自由混战</div></div></div>
         <div class="mbtn" data-a="loadout"><div class="ico">⚙</div><div><div class="mt">武器装备</div><div class="md">自定义配装 · 枪匠 · 技能 · 连杀奖励</div></div></div>
         <div class="mbtn" data-a="settings"><div class="ico">☰</div><div><div class="mt">设置</div><div class="md">画面 · 操作 · 音频</div></div></div>
       </div>
@@ -235,6 +247,7 @@ export class Menu {
       const a = el.dataset.a;
       if (a === 'campaign') this.showCampaign();
       else if (a === 'mp') this.showLobby();
+      else if (a === 'net') this.showNetLobby();
       else if (a === 'loadout') this.showLoadouts('main');
       else if (a === 'settings') this.showSettings('main');
     });
@@ -315,6 +328,171 @@ export class Menu {
   }
   perk(id) { for (const col of PERKS) for (const p of col) if (p.id === id) return p; return { name: id, desc: '', icon: '' }; }
 
+  // ---------------- 局域网联机 ----------------
+  showNetMsg(msg) {
+    // 用一个小提示条覆盖在当前联机界面上
+    if (this.screen !== 'netLobby' && this.screen !== 'netRoom') return;
+    let el = document.getElementById('netMsg');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(this._netMsgT);
+    this._netMsgT = setTimeout(() => el.classList.remove('show'), 4000);
+  }
+
+  async showNetLobby() {
+    this.setCam('lobby');
+    const net = this.game.net;
+    const hint = `<div class="brief" style="max-height:70vh;overflow-y:auto">
+      <div class="op">LAN</div>
+      <h1>局域网联机</h1>
+      <p>你的配装、枪匠和连杀奖励设置在联机中同样生效。房主的角色是<b style="color:#fff">开服务器</b>：</p>
+      <div style="background:#0e1114;border:1px solid #2a3138;border-radius:6px;padding:12px 16px;font-family:Consolas,monospace;font-size:14px;color:#8fe06a;line-height:1.8">
+        # 在游戏目录下运行（房主机器上）：<br>node server.mjs<br>
+        # 其他玩家浏览器打开 Lobby 打印的「局域网访问」地址，<br>例如 http://192.168.1.5:8080
+      </div>
+      <div style="margin-top:20px"><button class="btn" id="netGo">我已启动，进入联机大厅</button> <button class="btn ghost" data-a="back">返回</button></div>
+    </div>`;
+    const r = this.render(hint, 'dim', 'netHelp');
+    this.on(r, '[data-a=back]', () => this.showMain());
+    this.on(r, '#netGo', () => this.showNetLobbyUI());
+  }
+
+  netCfgSeg(key, list, sel) {
+    return `<div class="seg segnet" data-k="${key}">${list.map(([v, n]) => `<div data-v="${v}" class="${String(v) === String(sel) ? 'sel' : ''}">${n}</div>`).join('')}</div>`;
+  }
+
+  async showNetLobbyUI() {
+    this.setCam('lobby');
+    const game = this.game, net = game.net;
+    this._netTimer && clearInterval(this._netTimer);
+    const S = this._netSet = this._netSet || { mode: 'tdm', map: 'dune', time: 10 };
+    const r = this.render(`
+      <div class="lobby" style="max-width:1100px">
+        <div class="hdr">局域网联机<small>房间 · 所有玩家必须在同一局域网内</small></div>
+        <div style="display:flex;gap:20px;margin-top:18px;align-items:center">
+          <div style="font-size:13px;color:#999">你的昵称</div>
+          <input id="netName" value="${esc(net.name)}" maxlength="10" placeholder="指挥官" style="background:#101418;border:1px solid #333;border-radius:5px;color:#fff;padding:8px 12px;font-size:15px;width:180px;outline:none">
+          <button class="btn small ghost" id="netSetName" style="margin-left:4px">保存昵称</button>
+        </div>
+        <div id="netBody" style="flex:1;min-height:0;margin-top:12px"><div style="color:#999;letter-spacing:2px;padding:30px 0">正在连接本地服务器…</div></div>
+        <div style="margin-top:12px"><button class="btn ghost" data-a="back">返回</button></div>
+        <div id="netMsg" class="netmsg"></div>
+      </div>`, 'solid', 'netLobby');
+    this.on(r, '[data-a=back]', () => { this._netTimer && clearInterval(this._netTimer); this.showMain(); });
+    r.querySelector('#netSetName').addEventListener('click', () => net.setName(r.querySelector('#netName').value.trim() || '指挥官'));
+    this._netTimer = setInterval(() => {
+      if (this.screen !== 'netLobby') { clearInterval(this._netTimer); this._netTimer = null; return; }
+      net.refresh();
+    }, 2500);
+    try {
+      if (net.state !== 'on') await net.connect();
+      net.refresh();
+      const off = net.on('rooms', list => {
+        if (this.screen !== 'netLobby') { off(); return; }
+        const el = r.querySelector('#netBody');
+        if (!el) { off(); return; }
+        el.innerHTML = `
+          <div style="display:flex;gap:24px;align-items:stretch;flex-wrap:wrap">
+            <div style="flex:1.2;min-width:380px">
+              <div style="font-size:12px;color:#888;letter-spacing:3px;margin-bottom:8px">房间列表（自动刷新）</div>
+              <div>${list.length ? list.map(rm => `
+                <div class="netroom ${rm.playing ? 'playing' : ''}" data-id="${rm.id}">
+                  <div style="flex:1"><b>${esc(rm.name)}</b><span style="color:#888;font-size:12px;margin-left:8px">${NET_MODE_NAMES[rm.cfg?.mode] || '对局'} · ${(MP_MAPS.find(m => m.id === rm.cfg?.map) || {}).name || ''} · ${rm.playing ? '进行中' : '等待中'}</span></div>
+                  <div style="color:#aaa;font-size:13px;display:flex;align-items:center">${rm.n} 人 ${rm.playing ? '<span class="btn small ghost" style="margin-left:8px;pointer-events:none;opacity:.45">进行中</span>' : '<button class="btn small" style="margin-left:8px">加入</button>'}</div>
+                </div>`).join('') : '<div style="color:#666;padding:20px 0;font-size:14px">还没有房间 · 在右侧创建一个</div>'}</div>
+            </div>
+            <div style="flex:1;min-width:340px;background:#0d1013;border:1px solid #23282e;border-radius:8px;padding:18px">
+              <div style="font-size:12px;color:#888;letter-spacing:3px;margin-bottom:10px">创建房间</div>
+              <div style="display:flex;gap:8px;margin-bottom:10px"><input id="netRName" placeholder="房间名称（留空自动命名）" maxlength="16" style="flex:1;background:#101418;border:1px solid #333;border-radius:5px;color:#fff;padding:8px 12px;font-size:14px;outline:none"></div>
+              ${this.netCfgSeg('mode', NET_MODES.map(m => [m.id, m.name]), S.mode)}
+              ${this.netCfgSeg('map', MP_MAPS.map(m => [m.id, m.name]), S.map)}
+              ${this.netCfgSeg('time', [[5, '5 分钟'], [10, '10 分钟'], [15, '15 分钟']], S.time)}
+              <div style="color:#888;font-size:12px;margin:6px 0 12px">得分目标：团队死斗 50 杀 · 占领 200 分 · 自由混战 25 杀</div>
+              <button class="btn" id="netCreate" style="width:100%">创建并等待玩家</button>
+            </div>
+          </div>`;
+        el.querySelectorAll('.netroom').forEach(rv => rv.addEventListener('click', e => {
+          if (e.target.disabled) return;
+          this._netWantRoom = true;
+          net.join(rv.dataset.id);
+        }));
+        el.querySelectorAll('.segnet').forEach(sg => sg.querySelectorAll('div').forEach(d => d.addEventListener('click', () => {
+          S[sg.dataset.k] = isNaN(+d.dataset.v) ? d.dataset.v : +d.dataset.v;
+          sg.querySelectorAll('div').forEach(x => x.classList.toggle('sel', x === d));
+        })));
+        el.querySelector('#netCreate').addEventListener('click', () => {
+          const name = el.querySelector('#netRName').value.trim() || ((net.name || '指挥官') + ' 的房间');
+          const scoreLimit = S.mode === 'dom' ? 200 : S.mode === 'ffa' ? 25 : 50;
+          this._netWantRoom = true;
+          net.create(name, { mode: S.mode, map: S.map, scoreLimit, timeLimit: S.time });
+        });
+      });
+    } catch (e) {
+      r.querySelector('#netBody').innerHTML = `<div style="color:#ff6a5a;padding:14px 0">连接失败：${esc(e.message)}<br><span style="color:#999;font-size:13px">请确认页面是由 <b style="color:#ddd">node server.mjs</b> 启动的服务器提供的（而不是 python http.server 或直接双击 HTML 文件）。</span></div>`;
+    }
+  }
+
+  showNetRoom() {
+    this.setCam('lobby');
+    const game = this.game, net = game.net;
+    const room = net.room;
+    if (!room) { this.showNetLobbyUI(); return; }
+    this._netTimer && clearInterval(this._netTimer);
+    const host = !!net.isHost;
+    const playing = !!room.playing;
+    // 首次进入（或切换房间）时用服务器广播的 cfg 初始化偏好
+    if (room.cfg && (!this._netSet || this._netSetRoomId !== room.id)) this._netSet = { mode: room.cfg.mode || 'tdm', map: room.cfg.map || 'dune', time: room.cfg.timeLimit || 10 };
+    const S = this._netSet = this._netSet || { mode: 'tdm', map: 'dune', time: 10 };
+    this._netSetRoomId = room.id;
+    const cfgText = host ? S : { mode: room.cfg?.mode || 'tdm', map: room.cfg?.map || 'dune', time: room.cfg?.timeLimit || 10 };
+    const playersHtml = room.players.map(p => `
+      <div class="netroom" style="cursor:default"><b style="color:${p.h ? 'var(--acc)' : '#fff'}">${esc(p.n)}${p.h ? ' <span style="color:var(--acc);font-size:12px">房主</span>' : ''}${p.c === net.cid ? ' <span style="color:#888;font-size:12px">· 你</span>' : ''}</b></div>`).join('');
+    const r = this.render(`
+      <div class="lobby" style="max-width:1000px">
+        <div class="hdr">联机房间<small>${esc(room.name)} · ${host ? '房主' : '成员'} · 房间号 ${room.id}</small></div>
+        ${playing ? '<div style="margin-top:14px;color:#d4f24a;font-size:13px">▶ 对局进行中</div>' : ''}
+        <div style="display:flex;gap:26px;margin-top:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:330px">
+            <div style="font-size:12px;color:#888;letter-spacing:3px;margin-bottom:8px">玩家（${room.players.length}/16）</div>
+            ${playersHtml}
+            <div style="margin-top:18px"><button class="btn" data-a="start" ${host ? '' : 'disabled style="opacity:.45"'}>${playing ? '重新开始对局' : '开始对局'}</button>
+            ${host ? '' : `<div style="color:#888;font-size:12px;margin-top:8px">等待房主开始对局${playing ? '（进行中的下一局）' : ''}…</div>`}</div>
+            <div style="margin-top:14px"><button class="btn ghost small" data-a="loadout">编辑当前配装</button> <button class="btn ghost small" data-a="leave">退出房间</button></div>
+            <div style="color:#888;font-size:12px;margin-top:10px">配装与连杀奖励在「编辑当前配装」里设置，联机时每位玩家使用各自的配装。</div>
+          </div>
+          <div style="flex:1;min-width:330px;background:#0d1013;border:1px solid #23282e;border-radius:8px;padding:18px">
+            <div style="font-size:12px;color:#888;letter-spacing:3px;margin-bottom:10px">对局设置${host ? '' : '（由房主控制）'}</div>
+            ${host ? `
+              ${this.netCfgSeg('mode', NET_MODES.map(m => [m.id, m.name]), S.mode)}
+              ${this.netCfgSeg('map', MP_MAPS.map(m => [m.id, m.name]), S.map)}
+              ${this.netCfgSeg('time', [[5, '5 分钟'], [10, '10 分钟'], [15, '15 分钟']], S.time)}
+              <div style="color:#888;font-size:12px;margin:6px 0">得分目标：团队死斗 50 杀 · 占领 200 分 · 自由混战 25 杀</div>` : `
+              <div style="font-size:14px;color:#ccc;line-height:2">${NET_MODE_NAMES[cfgText.mode]}<br>${(MP_MAPS.find(m => m.id === cfgText.map) || {}).name || cfgText.map}<br>${cfgText.time} 分钟</div>`}
+          </div>
+        </div>
+        <div id="netMsg" class="netmsg"></div>
+      </div>`, 'solid', 'netRoom');
+    this.on(r, '[data-a=leave]', () => { net.leave(); this._netWantRoom = false; this.showNetLobbyUI(); });
+    this.on(r, '[data-a=loadout]', () => this.showLoadouts('netRoom'));
+    if (host) {
+      r.querySelectorAll('.segnet').forEach(sg => sg.querySelectorAll('div').forEach(d => d.addEventListener('click', () => {
+        S[sg.dataset.k] = isNaN(+d.dataset.v) ? d.dataset.v : +d.dataset.v;
+        const scoreLimit = S.mode === 'dom' ? 200 : S.mode === 'ffa' ? 25 : 50;
+        net.setCfg({ mode: S.mode, map: S.map, scoreLimit, timeLimit: S.time });
+      })));
+    }
+    this.on(r, '[data-a=start]', () => {
+      if (!host || !net.room.players.length) return;
+      const scoreLimit = S.mode === 'dom' ? 200 : S.mode === 'ffa' ? 25 : 50;
+      const cfg = buildNetCfg(net.room, { mode: S.mode, map: S.map, scoreLimit, timeLimit: S.time });
+      net.start(cfg);
+      this.game.startGame('net', cfg);
+      // 旧对局 dispose 会下发 playing=false，补一条 true 保证房间状态正确（在测试赛的「重新开始」时）
+      net.setPlaying(true);
+    });
+  }
+
   // ---------------- 配装 ----------------
   showLoadouts(from) {
     this.loadoutFrom = from || this.loadoutFrom || 'main';
@@ -357,7 +535,7 @@ export class Menu {
     this.on(r, '[data-p=tactical]', () => this.pickSimple(ci, 'tactical'));
     this.on(r, '[data-p=perks]', () => this.pickPerks(ci));
     this.on(r, '[data-p=streaks]', () => this.pickStreaks());
-    this.on(r, '[data-a=back]', () => { if (this.loadoutFrom === 'lobby') this.showLobby(); else if (this.loadoutFrom === 'pause') this.showPause(); else this.showMain(); });
+    this.on(r, '[data-a=back]', () => { if (this.loadoutFrom === 'lobby') this.showLobby(); else if (this.loadoutFrom === 'netRoom') this.showNetRoom(); else if (this.loadoutFrom === 'pause') this.showPause(); else this.showMain(); });
   }
   picker(title, sub, inner, onBack) {
     const scr = this.el.firstChild;
@@ -550,7 +728,7 @@ export class Menu {
         <div class="hdr" style="margin-bottom:30px">已暂停<small>${camp ? '战役 · 午夜清道夫' : '多人对战'}</small></div>
         <div class="mbtn" data-a="resume"><div class="ico">▶</div><div class="mt">继续游戏</div></div>
         ${camp ? '<div class="mbtn" data-a="cp"><div class="ico">↺</div><div class="mt">读取检查点</div></div>' : '<div class="mbtn" data-a="class"><div class="ico">⚙</div><div class="mt">更换配装</div></div>'}
-        <div class="mbtn" data-a="restart"><div class="ico">⟲</div><div class="mt">${camp ? '重新开始任务' : '重新开始对局'}</div></div>
+        ${(camp || !(g.mode && g.mode.isNet && !g.net.isHost)) ? `<div class="mbtn" data-a="restart"><div class="ico">⟲</div><div class="mt">${camp ? '重新开始任务' : '重新开始对局'}</div></div>` : ''}
         <div class="mbtn" data-a="settings"><div class="ico">☰</div><div class="mt">设置</div></div>
         <div class="mbtn" data-a="quit"><div class="ico">✕</div><div class="mt">退出到主菜单</div></div>
         <div style="margin-top:20px;font-size:12px;color:#777">按 Esc 继续</div>
@@ -558,9 +736,23 @@ export class Menu {
     this.on(r, '[data-a=resume]', () => this.resume());
     this.on(r, '[data-a=cp]', () => { g.paused = false; this.hide(); if (g.player.alive) { g.player.alive = false; g.dead = true; } g.mode.respawn(); });
     this.on(r, '[data-a=class]', () => this.showClassSelect(true));
-    this.on(r, '[data-a=restart]', () => { const cfg = g.mode.cfg; const kind = camp ? 'campaign' : 'mp'; g.paused = false; g.startGame(kind, cfg); });
+    this.on(r, '[data-a=restart]', () => {
+      const cfg = g.mode.cfg;
+      g.paused = false;
+      // 局域网对局：房主重开必须广播新 start（按下当前房间名单重新编队），否则各端不同帧
+      if (!camp && g.mode.isNet) {
+        if (g.net && g.net.isHost && g.net.room) {
+          const nc = buildNetCfg(g.net.room, { mode: cfg.mode, map: cfg.map, scoreLimit: cfg.scoreLimit, timeLimit: cfg.timeLimit });
+          g.net.start(nc);
+          g.startGame('net', nc);
+          g.net.setPlaying(true);
+        }
+        return;
+      }
+      g.startGame(camp ? 'campaign' : 'mp', cfg);
+    });
     this.on(r, '[data-a=settings]', () => this.showSettings('pause'));
-    this.on(r, '[data-a=quit]', () => g.exitToMenu());
+    this.on(r, '[data-a=quit]', () => { if (!camp && g.mode.isNet) g.net?.setPlaying(false); g.exitToMenu(); });
   }
   resume() {
     const g = this.game;
@@ -609,7 +801,7 @@ export class Menu {
         <div class="res-stats">${res.stats.map(([k, v]) => `<div><b>${v}</b>${k}</div>`).join('')}</div>
         ${res.board ? `<div id="sbCopy" style="max-height:38vh;overflow-y:auto;text-align:left;margin-bottom:20px">${res.board}</div>` : ''}
         <div style="font-size:13px;color:#999;margin-bottom:20px">等级 ${L.lv} · <div style="display:inline-block;width:200px;height:4px;background:#333;vertical-align:middle"><div style="height:100%;width:${Math.round(L.frac * 100)}%;background:var(--acc)"></div></div></div>
-        <div style="display:flex;gap:12px;justify-content:center"><button class="btn" data-a="again">再来一局</button><button class="btn ghost" data-a="menu">返回主菜单</button></div>
+        <div style="display:flex;gap:12px;justify-content:center">${res.noAgain ? '<div style="color:#888;font-size:13px;align-self:center">等待房主开始下一局…</div>' : '<button class="btn" data-a="again">再来一局</button>'}<button class="btn ghost" data-a="menu">返回主菜单</button></div>
       </div>`, 'solid', 'results');
     this.on(r, '[data-a=again]', () => { this.overlayOpen = false; res.again(); });
     this.on(r, '[data-a=menu]', () => { this.overlayOpen = false; g.exitToMenu(); });

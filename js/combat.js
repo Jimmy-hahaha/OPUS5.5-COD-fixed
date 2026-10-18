@@ -51,6 +51,8 @@ export function explode(game, pos, radius, maxDmg, attacker, weapon, opts = {}) 
     if (d < radius * 4) pl.shake(clamp(1.2 - d / (radius * 4), 0, 1) * 1.2);
     if (d < radius * 1.2) game.audio.ring(1.5, 0.05);
   }
+  // netVis：联机时远端的表现副本——只做特效，伤害由发起端通过玩家复制实体路由结算
+  if (opts.netVis) { game.makeNoise(pos, 80, attacker ? attacker.team : null); return; }
   const src = _p.copy(pos); src.y += 0.4;
   for (const e of game.entities) {
     if (!e.alive || !e.chestPos) continue;
@@ -91,9 +93,10 @@ export function flashAt(game, pos, owner) {
 }
 
 export class Projectile {
-  constructor(game, type, pos, vel, owner, fuse) {
+  constructor(game, type, pos, vel, owner, fuse, opts = {}) {
     this.game = game; this.type = type; this.pos = pos.clone(); this.vel = vel.clone(); this.owner = owner;
     this.fuse = fuse; this.alive = true; this.stuck = false; this.age = 0; this.bounces = 0;
+    this.netVis = !!opts.netVis;
     let geo, m;
     if (type === 'frag') { geo = new THREE.SphereGeometry(0.05, 10, 8); m = mat('gunGreen'); }
     else if (type === 'semtex') { geo = new THREE.BoxGeometry(0.08, 0.05, 0.05); m = mat('yellowPaint'); }
@@ -189,9 +192,10 @@ export class Projectile {
     this.alive = false;
     g.scene.remove(this.mesh);
     const wn = { frag: '破片手雷', semtex: '粘性炸弹', molotov: '燃烧瓶', rocket: 'RPG-7', bomb: '集束空袭' }[this.type];
-    if (this.type === 'frag' || this.type === 'semtex') explode(g, this.pos, 7, 160, this.owner, wn);
-    else if (this.type === 'rocket') explode(g, this.pos, 6, 170, this.owner, wn, { scale: 1.2 });
-    else if (this.type === 'bomb') explode(g, this.pos, 8, 180, this.owner, wn, { scale: 1.3 });
+    const nv = { netVis: this.netVis };
+    if (this.type === 'frag' || this.type === 'semtex') explode(g, this.pos, 7, 160, this.owner, wn, nv);
+    else if (this.type === 'rocket') explode(g, this.pos, 6, 170, this.owner, wn, { scale: 1.2, netVis: this.netVis });
+    else if (this.type === 'bomb') explode(g, this.pos, 8, 180, this.owner, wn, { scale: 1.3, netVis: this.netVis });
     else if (this.type === 'flash') flashAt(g, this.pos, this.owner);
     else if (this.type === 'molotov') {
       const owner = this.owner;
@@ -199,6 +203,7 @@ export class Projectile {
       g.audio.explosion(center, 0.35);
       g.audio.click(2500, 0.3, 0.4, center);
       g.effects.addFireSource(center, 3, 7, (dt, f) => {
+        if (this.netVis) return; // 远端表现副本不结算燃烧伤害
         for (const e of g.entities) {
           if (!e.alive) continue;
           if (owner && e.team === owner.team && e !== owner) continue;

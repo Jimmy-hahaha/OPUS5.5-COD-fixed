@@ -458,7 +458,7 @@ export class MPMatch {
         win, title: win === 'win' ? '胜利' : win === 'draw' ? '平局' : '失败',
         sub: this.ffa ? `第 ${place} 名` : `${Math.floor(this.scores.A)} : ${Math.floor(this.scores.B)}`,
         stats: [['得分', pl.stats.score], ['击杀', pl.stats.kills], ['死亡', pl.stats.deaths], ['K/D', (pl.stats.kills / Math.max(1, pl.stats.deaths)).toFixed(2)], ['命中率', Math.round(pl.stats.hits / Math.max(1, pl.stats.shots) * 100) + '%'], ['经验值', '+' + xp]],
-        board: this.scoreboardHTML(), again: () => game.startGame('mp', this.cfg),
+        board: this.scoreboardHTML(), again: () => this.again ? this.again() : game.startGame(this.cfg.kind || 'mp', this.cfg), noAgain: this.noAgain,
       });
     }, 2500);
   }
@@ -469,9 +469,10 @@ export class MPMatch {
 }
 
 // ---------- 哨戒机枪 ----------
-class Sentry {
-  constructor(game, pos, owner) {
+export class Sentry {
+  constructor(game, pos, owner, opts = {}) {
     this.game = game; this.owner = owner; this.team = owner.team; this.name = '哨戒机枪'; this.isTurret = true;
+    this.noFire = !!opts.noFire;
     this.pos = pos.clone(); this.pos.y = game.world.groundHeight(pos.x, pos.z, pos.y + 0.5, 0.3);
     this.hp = 300; this.alive = true; this.t = 60; this.yaw = owner.yaw; this.fireT = 0; this.target = null; this.scanT = 0;
     this.stats = { dmgNear: 20, dmgFar: 16, rangeNear: 20, rangeFar: 50, headMul: 1.2, name: '哨戒机枪' };
@@ -514,7 +515,7 @@ class Sentry {
     if (this.t <= 0) { this.alive = false; this.dispose(); return; }
     this.fireT -= dt; this.scanT -= dt;
     const eye = this.eyePos(new THREE.Vector3());
-    if (this.scanT <= 0) {
+    if (this.scanT <= 0 && !this.noFire) {
       this.scanT = 0.25; this.target = null;
       let bd = 45;
       for (const e of game.entities) {
@@ -532,7 +533,7 @@ class Sentry {
       const want = Math.atan2(-(c.x - eye.x), -(c.z - eye.z));
       let da = want - this.yaw; while (da > Math.PI) da -= Math.PI * 2; while (da < -Math.PI) da += Math.PI * 2;
       this.yaw += clamp(da, -5 * dt, 5 * dt);
-      if (Math.abs(da) < 0.15 && this.fireT <= 0) {
+      if (!this.noFire && Math.abs(da) < 0.15 && this.fireT <= 0) {
         this.fireT = 0.1;
         const dir = spreadDir(c.sub(eye).normalize(), 2.2 * DEG, new THREE.Vector3());
         const r = fireHitscan(game, this.owner.alive !== undefined ? this.owner : this, eye, dir, this.stats, '哨戒机枪');
@@ -550,6 +551,7 @@ class Sentry {
 export class Heli {
   constructor(game, team, owner, opts = {}) {
     this.game = game; this.team = team; this.owner = owner; this.alive = true;
+    this.noFire = !!opts.noFire;
     this.t = opts.duration || 45; this.ang = Math.random() * 6; this.fireT = 0; this.target = null; this.scanT = 0;
     this.radius = Math.min(28, game.world.half * 0.55); this.height = opts.height || 24;
     this.stats = { dmgNear: 26, dmgFar: 22, rangeNear: 30, rangeFar: 80, headMul: 1.2, name: '武装直升机' };
@@ -574,7 +576,7 @@ export class Heli {
     const d = game.player ? this.pos.distanceTo(game.camera.position) : 100;
     game.audio.setLoopVol(this.loopName, clamp(0.5 - d / 150, 0.02, 0.5));
     this.scanT -= dt; this.fireT -= dt;
-    if (this.scanT <= 0) {
+    if (this.scanT <= 0 && !this.noFire) {
       this.scanT = 0.5; this.target = null; let bd = 90;
       for (const e of game.entities) {
         if (!e.alive || e.team === this.team || !e.chestPos) continue;
@@ -586,7 +588,7 @@ export class Heli {
       }
     }
     let look = this.ang + Math.PI;
-    if (this.target && this.target.alive) {
+    if (this.target && this.target.alive && !this.noFire) {
       const c = this.target.chestPos(new THREE.Vector3());
       look = Math.atan2(-(c.x - this.pos.x), -(c.z - this.pos.z));
       if (this.fireT <= 0 && this.enter <= 0) {
