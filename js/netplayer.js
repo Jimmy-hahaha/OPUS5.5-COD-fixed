@@ -109,6 +109,12 @@ export class NetPlayer {
     const A = this.anim;
     if (!this.hasState) { this.model.root.visible = false; return; }
     this.model.root.visible = true;
+    // 近景才显示精致装饰，远处用合并后的低细节
+    const me = this.game.player;
+    if (this.model.setDetail && me) {
+      const dx = this.pos.x - me.pos.x, dz = this.pos.z - me.pos.z;
+      this.model.setDetail(dx * dx + dz * dz < 26 * 26);
+    }
     if (this.alive) {
       const prevX = this.pos.x, prevZ = this.pos.z;
       this.pos.x = damp(this.pos.x, this.tPos.x, 18, dt);

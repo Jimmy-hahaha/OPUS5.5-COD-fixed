@@ -214,9 +214,17 @@ export class Bot {
     return out.set(dx / l * speed, 0, dz / l * speed);
   }
 
+  _nearDetail(game) {
+    const p = game.player;
+    if (!p) return true;
+    const dx = this.pos.x - p.pos.x, dz = this.pos.z - p.pos.z;
+    return dx * dx + dz * dz < 26 * 26;
+  }
   update(dt) {
     const game = this.game;
     const A = this.anim;
+    // 近景才显示精致装饰（口袋、NVG 支架、天线等），远处用合并后的低细节
+    if (this.model.setDetail) this.model.setDetail(this._nearDetail(game));
     if (!this.alive) {
       A.deadT += dt;
       animateSoldier(this.model, A, dt);

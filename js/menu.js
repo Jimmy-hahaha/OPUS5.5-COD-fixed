@@ -234,6 +234,7 @@ export class Menu {
         <div class="menu-sub">MODERN FRONTLINE</div>
         <div class="mbtn" data-a="campaign"><div class="ico">◈</div><div><div class="mt">战役</div><div class="md">行动代号：午夜清道夫 ${best ? '· 最佳 ' + fmtTime(best) : ''}</div></div></div>
         <div class="mbtn" data-a="mp"><div class="ico">⚔</div><div><div class="mt">多人对战</div><div class="md">团队死斗 · 占领 · 自由混战（对战AI）</div></div></div>
+        <div class="mbtn" data-a="range"><div class="ico">◎</div><div><div class="mt">射击训练场</div><div class="md">固定靶 · 移动靶 · 没有敌人 · 熟悉枪械</div></div></div>
         <div class="mbtn" data-a="net"><div class="ico">⇄</div><div><div class="mt">局域网联机</div><div class="md">和人玩 · 同一局域网 · TDM / 占领 / 自由混战</div></div></div>
         <div class="mbtn" data-a="loadout"><div class="ico">⚙</div><div><div class="mt">武器装备</div><div class="md">自定义配装 · 枪匠 · 技能 · 连杀奖励</div></div></div>
         <div class="mbtn" data-a="settings"><div class="ico">☰</div><div><div class="mt">设置</div><div class="md">画面 · 操作 · 音频</div></div></div>
@@ -248,6 +249,7 @@ export class Menu {
       const a = el.dataset.a;
       if (a === 'campaign') this.showCampaign();
       else if (a === 'mp') this.showLobby();
+      else if (a === 'range') this.showTraining();
       else if (a === 'net') this.showNetLobby();
       else if (a === 'loadout') this.showLoadouts('main');
       else if (a === 'settings') this.showSettings('main');
@@ -271,6 +273,42 @@ export class Menu {
       </div>`, 'dim', 'campaign');
     this.on(r, '.diff', el => { this.campDiff = +el.dataset.d; r.querySelectorAll('.diff').forEach(d => d.classList.toggle('sel', d === el)); });
     this.on(r, '[data-a=go]', () => this.game.startGame('campaign', { diff: this.campDiff }));
+    this.on(r, '[data-a=back]', () => this.showMain());
+  }
+
+  // ---------------- 射击训练场 ----------------
+  showTraining() {
+    this.setCam('lobby');
+    const T = this.training = this.training || { speed: 1 };
+    const P = this.game.profile;
+    const cls = P.classes[P.selClass || 0];
+    const best = +(localStorage.getItem('mf_range_best') || 0);
+    const r = this.render(`
+      <div class="brief">
+        <div class="op">TRAINING</div>
+        <h1>射击训练场</h1>
+        <p>这里没有敌人，只有靶子。10 个固定靶与 3 条移动靶轨道分布在 12 至 37 米的距离上，命中靶心可以获得更高分数。靶子被击中后会向前倒下，并在短暂延迟后重新立起，可以反复练习。</p>
+        <div class="meta"><div>固定靶<b>10 个</b></div><div>移动靶<b>3 条轨道</b></div><div>距离<b>12–37 米</b></div><div>最高分<b>${best}</b></div></div>
+        <div class="diffs">
+          <div class="diff ${T.speed === 0.6 ? 'sel' : ''}" data-s="0.6"><b>慢速</b><span>移动靶缓慢横移，适合熟悉枪械与瞄准。</span></div>
+          <div class="diff ${T.speed === 1 ? 'sel' : ''}" data-s="1"><b>标准</b><span>移动靶以正常速度往返。</span></div>
+          <div class="diff ${T.speed === 1.5 ? 'sel' : ''}" data-s="1.5"><b>高速</b><span>移动靶快速横移，考验跟枪与压枪。</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;font-size:14px;color:#aaa">
+          当前配装：<b style="color:#fff">${esc(cls.name)}</b> · ${WEAPONS[cls.primary].name} / ${WEAPONS[cls.secondary].name}
+          <button class="btn small ghost" data-a="loadout">编辑配装</button>
+        </div>
+        <div style="display:flex;gap:12px"><button class="btn" data-a="go">开始训练</button><button class="btn ghost" data-a="back">返回</button></div>
+      </div>`, 'dim', 'training');
+    this.on(r, '.diff', el => {
+      T.speed = +el.dataset.s;
+      r.querySelectorAll('.diff').forEach(d => d.classList.toggle('sel', d === el));
+    });
+    this.on(r, '[data-a=go]', () => {
+      this.showLoadingOverlay('正在布置靶场…');
+      setTimeout(() => this.game.startGame('training', { kind: 'training', map: 'range', speed: T.speed }), 500);
+    });
+    this.on(r, '[data-a=loadout]', () => this.showLoadouts('training'));
     this.on(r, '[data-a=back]', () => this.showMain());
   }
 
@@ -536,7 +574,7 @@ export class Menu {
     this.on(r, '[data-p=tactical]', () => this.pickSimple(ci, 'tactical'));
     this.on(r, '[data-p=perks]', () => this.pickPerks(ci));
     this.on(r, '[data-p=streaks]', () => this.pickStreaks());
-    this.on(r, '[data-a=back]', () => { if (this.loadoutFrom === 'lobby') this.showLobby(); else if (this.loadoutFrom === 'netRoom') this.showNetRoom(); else if (this.loadoutFrom === 'pause') this.showPause(); else this.showMain(); });
+    this.on(r, '[data-a=back]', () => { if (this.loadoutFrom === 'lobby') this.showLobby(); else if (this.loadoutFrom === 'netRoom') this.showNetRoom(); else if (this.loadoutFrom === 'training') this.showTraining(); else if (this.loadoutFrom === 'pause') this.showPause(); else this.showMain(); });
   }
   picker(title, sub, inner, onBack) {
     const scr = this.el.firstChild;
@@ -724,12 +762,13 @@ export class Menu {
     this.pauseAt = performance.now();
     const g = this.game;
     const camp = g.mode && g.mode.constructor.name === 'Campaign';
+    const training = g.mode && g.mode.kind === 'training';
     const r = this.render(`
       <div class="pause">
-        <div class="hdr" style="margin-bottom:30px">已暂停<small>${camp ? '战役 · 午夜清道夫' : '多人对战'}</small></div>
+        <div class="hdr" style="margin-bottom:30px">已暂停<small>${camp ? '战役 · 午夜清道夫' : training ? '训练场' : '多人对战'}</small></div>
         <div class="mbtn" data-a="resume"><div class="ico">▶</div><div class="mt">继续游戏</div></div>
         ${camp ? '<div class="mbtn" data-a="cp"><div class="ico">↺</div><div class="mt">读取检查点</div></div>' : '<div class="mbtn" data-a="class"><div class="ico">⚙</div><div class="mt">更换配装</div></div>'}
-        ${(camp || !(g.mode && g.mode.isNet && !g.net.isHost)) ? `<div class="mbtn" data-a="restart"><div class="ico">⟲</div><div class="mt">${camp ? '重新开始任务' : '重新开始对局'}</div></div>` : ''}
+        ${(camp || !(g.mode && g.mode.isNet && !g.net.isHost)) ? `<div class="mbtn" data-a="restart"><div class="ico">⟲</div><div class="mt">${camp ? '重新开始任务' : training ? '重新开始训练' : '重新开始对局'}</div></div>` : ''}
         <div class="mbtn" data-a="settings"><div class="ico">☰</div><div class="mt">设置</div></div>
         <div class="mbtn" data-a="quit"><div class="ico">✕</div><div class="mt">退出到主菜单</div></div>
         <div style="margin-top:20px;font-size:12px;color:#777">按 Esc 继续</div>
@@ -750,7 +789,7 @@ export class Menu {
         }
         return;
       }
-      g.startGame(camp ? 'campaign' : 'mp', cfg);
+      g.startGame(camp ? 'campaign' : (cfg && cfg.kind) || 'mp', cfg);
     });
     this.on(r, '[data-a=settings]', () => this.showSettings('pause'));
     this.on(r, '[data-a=quit]', () => { if (!camp && g.mode.isNet) g.net?.setPlaying(false); g.exitToMenu(); });
@@ -768,7 +807,7 @@ export class Menu {
     if (document.pointerLockElement) document.exitPointerLock();
     const r = this.render(`
       <div style="margin:auto;width:760px">
-        <div class="hdr" style="margin-bottom:18px">选择配装<small>将在下次部署时生效</small></div>
+        <div class="hdr" style="margin-bottom:18px">选择配装<small>${g.mode && g.mode.kind === 'training' ? '立即生效' : '将在下次部署时生效'}</small></div>
         <div class="pick-grid" style="grid-template-columns:1fr">${P.classes.map((c, i) => `<div class="pick ${i === P.selClass ? 'sel' : ''}" data-i="${i}" style="display:flex;justify-content:space-between;align-items:center"><div><b>${esc(c.name)}</b><span>${WEAPONS[c.primary].name}${Object.keys(c.patt || {}).length ? ' (' + Object.keys(c.patt).length + '配件)' : ''} · ${WEAPONS[c.secondary].name} · ${(LETHALS.find(x => x.id === c.lethal) || {}).name || ''} · ${(TACTICALS.find(x => x.id === c.tactical) || {}).name || ''}</span></div><div style="font-size:12px;color:#aaa;text-align:right">${c.perks.map(id => this.perk(id).icon + ' ' + this.perk(id).name).join('<br>')}</div></div>`).join('')}</div>
         <div style="margin-top:16px"><button class="btn ghost" data-a="close">取消</button></div>
       </div>`, 'solid', 'classSelect');
@@ -777,7 +816,7 @@ export class Menu {
       const i = +el.dataset.i;
       if (g.mode && g.mode.applyClass) g.mode.applyClass(i);
       this.selClass = i;
-      g.hud.popup(`配装「${P.classes[i].name}」将在下次部署时生效`, '#d4f24a');
+      g.hud.popup(g.mode && g.mode.kind === 'training' ? `已更换为「${P.classes[i].name}」` : `配装「${P.classes[i].name}」将在下次部署时生效`, '#d4f24a');
       this.hideClassSelect();
     });
     this.on(r, '[data-a=close]', () => this.hideClassSelect());

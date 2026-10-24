@@ -34,7 +34,8 @@ export function fireHitscan(game, shooter, o, d, stats, weaponName, opts = {}) {
   if (r.ent) {
     const dmg = damageAt(stats, r.t, r.part) * (opts.dmgMul || 1);
     const killed = r.ent.takeDamage(dmg, { attacker: shooter, head: r.part === 'head', dir: d, weapon: weaponName, point: r.point });
-    game.effects.blood(r.point, d, r.part === 'head');
+    if (r.ent.noBlood) game.effects.spark(r.point, { x: -d.x, y: -d.y, z: -d.z });
+    else game.effects.blood(r.point, d, r.part === 'head');
     r.killed = killed; r.dmg = dmg;
   } else if (r.world) {
     game.effects.impact(r.point, r.world.normal, r.world.box.mat || 'concrete');

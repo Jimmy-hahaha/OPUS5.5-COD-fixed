@@ -146,6 +146,17 @@ export class Effects {
     for (let i = 0; i < 4; i++) this.smoke.emit({ x: point.x, y: point.y, z: point.z, vx: n.x * rand(2, 5) + rand(-2, 2), vy: rand(1, 4), vz: n.z * rand(2, 5) + rand(-2, 2), g: 12, life: 0.5, s0: 0.035, s1: 0.03, c0: col.map(c => c * 0.6), a0: 1, floor: 0 });
     this.decal(point, n, 0.09 + Math.random() * 0.04, this.decalMat);
   }
+  // 金属靶面火花（不带弹孔贴花，避免靶子移动/倒下后残留悬空弹孔）
+  spark(point, normal) {
+    const n = normal || { x: 0, y: 1, z: 0 };
+    for (let i = 0; i < 9; i++) this.add.emit({
+      x: point.x, y: point.y, z: point.z,
+      vx: n.x * rand(1, 4) + rand(-2.2, 2.2), vy: n.y * rand(1, 4) + rand(0, 2.5), vz: n.z * rand(1, 4) + rand(-2.2, 2.2),
+      g: 9.8, life: rand(0.12, 0.35), s0: 0.05, s1: 0.01, c0: [4, 2.8, 1.2], a0: 1,
+    });
+    this.smoke.emit({ x: point.x, y: point.y, z: point.z, vx: n.x * 0.8, vy: 0.3, vz: n.z * 0.8, life: 0.3, s0: 0.1, s1: 0.35, c0: [0.5, 0.5, 0.5], a0: 0.25, drag: 3 });
+  }
+
   blood(point, dir, head = false) {
     for (let i = 0; i < (head ? 14 : 8); i++) this.smoke.emit({ x: point.x, y: point.y, z: point.z, vx: dir.x * rand(0.5, 3) + rand(-1, 1), vy: rand(-0.5, 1.5), vz: dir.z * rand(0.5, 3) + rand(-1, 1), g: 6, drag: 2, life: rand(0.25, 0.6), s0: 0.06, s1: head ? 0.35 : 0.25, c0: [0.45, 0.02, 0.02], a0: 0.85 });
   }

@@ -475,6 +475,57 @@ export const MAPS = {
     },
   },
 
+  // ================= 射击训练场 =================
+  range: {
+    id: 'range', name: '射击训练场', size: 100, seed: 91, surface: 'dirt', styles: ['ally', 'ally'],
+    env: { sky: 'day', sunDir: [0.42, 0.72, 0.55], sunColor: 0xfff2dc, sun: 3.0, hemi: 0.8, sky2: 0xcfe2ff, ground: 0xa88a62, fog: 0xd8cbb4, fogDensity: 0.004, turbidity: 8, rayleigh: 1.1, mie: 0.005, exposure: 0.88, mountains: 'sand', envIntensity: 0.7, weather: 'dust', ambient: 'wind' },
+    build(w) {
+      w.ground('dirt');
+      w.bounds();
+      // 射击平台
+      w.box(0, 0, 17, 40, 0.06, 22, 'concrete', { collide: false });
+      // 射击棚：立柱 + 顶棚（不设立柱挡住中轴线）
+      for (const x of [-16, 16]) for (const z of [11, 23]) w.box(x, 0, z, 0.3, 3.4, 0.3, 'darkMetal');
+      w.box(0, 3.4, 17, 34, 0.25, 14, 'metalRoof', { collide: false });
+      // 射击位挡墙（离射击线 2 米）
+      for (const x of [-13, -6.5, 0, 6.5, 13]) w.sandbags(x, 18, 5, 0, 0.9);
+      // 侧墙与背弹坡
+      w.box(-30, 0, 1.5, 0.6, 3.2, 53, 'concrete');
+      w.box(30, 0, 1.5, 0.6, 3.2, 53, 'concrete');
+      w.box(0, 0, -22, 76, 4.2, 2.4, 'dirt');
+      w.rock(-24, -20, 1.4); w.rock(25, -19, 1.1);
+      // 距离标线（从射击线 z=20 起算：15 / 25 / 35 米）
+      for (const z of [5, -5, -15]) w.box(0, 0.07, z, 56, 0.02, 0.14, 'yellowPaint', { collide: false });
+      // 移动靶轨道（最前一条放在固定靶之前，避免被前排靶挡住）
+      for (const z of [12, -6, -14]) {
+        w.box(0, 0.12, z, 34, 0.12, 0.22, 'darkMetal', { collide: false });
+        for (const x of [-17, 17]) w.box(x, 0, z, 0.18, 0.9, 0.18, 'darkMetal');
+      }
+      // 装备箱、桌椅与杂物
+      w.box(-4.5, 0, 20.5, 2.4, 0.8, 1.0, 'wood');
+      w.crate(3, 21, 1.1); w.crate(4.2, 21, 1.0);
+      w.box(3.6, 1.0, 21, 1.3, 0.5, 0.8, 'gunGreen');
+      w.barrel(-17, 20, 'containerBlue'); w.barrel(-17.7, 20.5, 'containerGreen');
+      w.crateStack(-19, 12); w.crateStack(19, 12);
+      w.sandbags(-24, 10, 6, Math.PI / 2); w.sandbags(24, 10, 6, Math.PI / 2);
+      w.lampPost(-20, 23, 0xffe0b0, Math.PI / 2, 12); w.lampPost(20, 23, 0xffe0b0, -Math.PI / 2, 12);
+      w.tent(-24, 22, 4, 5, Math.PI / 2);
+      w.ammoCrate = V(3.6, 21);
+      // 靶位：固定靶 / 移动靶（由训练场模式生成实体），距离从射击线 z=20 起算 12–37 米
+      w.rangeTargets = {
+        static: [V(-12, 8), V(-4, 6), V(4, 6), V(12, 8), V(-9, -2), V(0, -4), V(9, -2), V(-13, -12), V(13, -12), V(0, -17)],
+        moving: [
+          { from: V(-15, 12), to: V(15, 12), speed: 2.4 },
+          { from: V(-15, -6), to: V(15, -6), speed: 3.5 },
+          { from: V(-8, -14), to: V(8, -14), speed: 2.0 },
+        ],
+      };
+      w.spawns.A = [V(0, 20), V(-3, 21), V(3, 21)];
+      w.spawns.B = [V(0, 24)];
+      w.flagPos = [];
+    },
+  },
+
   // ================= 战役：卡尔达什 =================
   kaldash: {
     id: 'kaldash', name: '卡尔达什村', size: 200, seed: 51, surface: 'dirt', night: true, styles: ['ally', 'insurgent'],

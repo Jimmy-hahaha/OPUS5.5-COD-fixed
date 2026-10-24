@@ -23,9 +23,9 @@ html, body { position: fixed; inset: 0; }
 #menu > .screen { position: absolute; inset: 0; pointer-events: auto; display: flex; }
 .screen.dim { background: linear-gradient(90deg, rgba(0,0,0,.85) 0%, rgba(0,0,0,.45) 45%, rgba(0,0,0,.1) 100%); }
 .screen.solid { background: rgba(6, 8, 9, .9); backdrop-filter: blur(6px); }
-.menu-left { padding: 70px 0 0 80px; width: 520px; display: flex; flex-direction: column; }
+.menu-left { padding: 54px 0 0 80px; width: 520px; display: flex; flex-direction: column; }
 .menu-title { font-size: 46px; font-weight: 900; letter-spacing: 10px; color: #fff; }
-.menu-sub { font-size: 13px; color: var(--acc); letter-spacing: 8px; margin: 4px 0 50px; }
+.menu-sub { font-size: 13px; color: var(--acc); letter-spacing: 8px; margin: 4px 0 34px; }
 .mbtn { display: flex; align-items: center; gap: 16px; width: 380px; padding: 16px 22px; margin-bottom: 8px; background: rgba(255,255,255,.04); border-left: 3px solid transparent; cursor: pointer; transition: all .15s; }
 .mbtn:hover { background: rgba(255,255,255,.12); border-left-color: var(--acc); padding-left: 30px; }
 .mbtn .mt { font-size: 22px; font-weight: 700; letter-spacing: 4px; }

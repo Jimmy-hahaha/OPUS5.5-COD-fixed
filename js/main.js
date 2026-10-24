@@ -19,6 +19,7 @@ import { MPMatch } from './mp.js';
 import { NetMatch } from './netmatch.js';
 import { Net } from './net.js';
 import { Campaign } from './campaign.js';
+import { TrainingRange } from './training.js';
 import { buildGun } from './gunmodel.js';
 import { DEFAULT_CLASSES, DEFAULT_STREAKS } from './data.js';
 import { damp } from './util.js';
@@ -283,6 +284,9 @@ class Game {
     } else if (kind === 'net') {
       this.loadMap(cfg.map);
       this.mode = new NetMatch(this, cfg);
+    } else if (kind === 'training') {
+      this.loadMap(cfg.map || 'range');
+      this.mode = new TrainingRange(this, cfg);
     } else {
       this.loadMap('kaldash');
       this.mode = new Campaign(this, cfg);
