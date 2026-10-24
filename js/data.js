@@ -349,12 +349,28 @@ export const KILLSTREAKS = [
   { id: 'wp', name: '白磷弹', kills: 10, desc: '白磷覆盖整个战场，灼烧所有敌人', icon: '🔥' },
 ];
 
+// 头盔与防弹衣：配装外观，可按每套配装单独选择；防弹衣可选「不穿」
+// headArmor / bodyArmor：对应部位的伤害减免；mobility：移动速度倍率
+export const HELMETS = [
+  { id: 'none', name: '不戴头盔', desc: '只戴护目镜和头套，轻装上阵', icon: '🚫', headArmor: 0, mobility: 1.0, tags: ['无头部防护', '移动最快'] },
+  { id: 'standard', name: '制式头盔', desc: '标准凯夫拉头盔，配耳罩与盔带', icon: '🪖', headArmor: 0.15, mobility: 0.97, tags: ['爆头伤害 -15%', '耳罩'] },
+  { id: 'nvg', name: '夜视头盔', desc: '带夜视仪支架、配重包与通讯天线', icon: '🔭', headArmor: 0.18, mobility: 0.95, tags: ['爆头伤害 -18%', '夜视仪（战役）', '通讯天线'] },
+  { id: 'heavy', name: '重型头盔', desc: '加厚盔体、护耳与可翻起面罩', icon: '🛡', headArmor: 0.3, mobility: 0.9, tags: ['爆头伤害 -30%', '可翻起面罩', '移动明显变慢'] },
+];
+export const VESTS = [
+  { id: 'none', name: '不穿防弹衣', desc: '仅穿作战服，最轻便', icon: '🚫', bodyArmor: 0, mobility: 1.0, tags: ['无躯干防护', '移动最快'] },
+  { id: 'light', name: '轻型防弹衣', desc: '只保护躯干要害，没有背包与护肩', icon: '🎽', bodyArmor: 0.08, mobility: 0.98, tags: ['躯干伤害 -8%', '无背包'] },
+  { id: 'standard', name: '制式防弹衣', desc: '弹匣袋、护肩与背包齐全', icon: '🦺', bodyArmor: 0.15, mobility: 0.94, tags: ['躯干伤害 -15%', '弹匣袋', '护肩 + 背包'] },
+  { id: 'heavy', name: '重型防弹衣', desc: '附加护颈、加厚肩甲与腹部护板', icon: '🛡', bodyArmor: 0.22, mobility: 0.88, tags: ['躯干伤害 -22%', '护颈', '腹部护板', '移动明显变慢'] },
+];
+export const gearOf = (id, kind) => (kind === 'helmet' ? HELMETS : VESTS).find(x => x.id === id) || null;
+
 export const DEFAULT_CLASSES = [
-  { name: '突击兵', primary: 'm4', patt: { optic: 'holo', under: 'vgrip', muzzle: 'comp' }, pcamo: 'none', secondary: 'm1911', satt: {}, scamo: 'none', lethal: 'frag', tactical: 'flash', perks: ['doubletime', 'ghost', 'sleight'] },
-  { name: '近战突破', primary: 'mp5', patt: { optic: 'reddot', laser: 'tac', stock: 'none' }, pcamo: 'digital', secondary: 'm1911', satt: {}, scamo: 'none', lethal: 'semtex', tactical: 'flash', perks: ['doubletime', 'quickfix', 'ninja'] },
-  { name: '狙击手', primary: 'l115', patt: { muzzle: 'suppressor', barrel: 'long' }, pcamo: 'woodland', secondary: 'm1911', satt: {}, scamo: 'none', lethal: 'frag', tactical: 'smoke', perks: ['coldblooded', 'ghost', 'highalert'] },
-  { name: '火力支援', primary: 'pkm', patt: { optic: 'reddot', under: 'bipod' }, pcamo: 'desert', secondary: 'rpg', satt: {}, scamo: 'none', lethal: 'molotov', tactical: 'stim', perks: ['eod', 'hardline', 'amped'] },
-  { name: '霰弹枪手', primary: 'm870', patt: { barrel: 'long', laser: 'tac' }, pcamo: 'tiger', secondary: 'revolver', satt: {}, scamo: 'none', lethal: 'semtex', tactical: 'stim', perks: ['scavenger', 'quickfix', 'ninja'] },
+  { name: '突击兵', primary: 'm4', patt: { optic: 'holo', under: 'vgrip', muzzle: 'comp' }, pcamo: 'none', secondary: 'm1911', satt: {}, scamo: 'none', lethal: 'frag', tactical: 'flash', perks: ['doubletime', 'ghost', 'sleight'], helmet: 'nvg', vest: 'standard' },
+  { name: '近战突破', primary: 'mp5', patt: { optic: 'reddot', laser: 'tac', stock: 'none' }, pcamo: 'digital', secondary: 'm1911', satt: {}, scamo: 'none', lethal: 'semtex', tactical: 'flash', perks: ['doubletime', 'quickfix', 'ninja'], helmet: 'standard', vest: 'light' },
+  { name: '狙击手', primary: 'l115', patt: { muzzle: 'suppressor', barrel: 'long' }, pcamo: 'woodland', secondary: 'm1911', satt: {}, scamo: 'none', lethal: 'frag', tactical: 'smoke', perks: ['coldblooded', 'ghost', 'highalert'], helmet: 'none', vest: 'light' },
+  { name: '火力支援', primary: 'pkm', patt: { optic: 'reddot', under: 'bipod' }, pcamo: 'desert', secondary: 'rpg', satt: {}, scamo: 'none', lethal: 'molotov', tactical: 'stim', perks: ['eod', 'hardline', 'amped'], helmet: 'heavy', vest: 'heavy' },
+  { name: '霰弹枪手', primary: 'm870', patt: { barrel: 'long', laser: 'tac' }, pcamo: 'tiger', secondary: 'revolver', satt: {}, scamo: 'none', lethal: 'semtex', tactical: 'stim', perks: ['scavenger', 'quickfix', 'ninja'], helmet: 'standard', vest: 'standard' },
 ];
 
 export const DEFAULT_STREAKS = ['uav', 'cluster', 'heli'];

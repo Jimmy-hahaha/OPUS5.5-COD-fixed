@@ -61,6 +61,11 @@ class Game {
     this.settings = Object.assign({ sens: 1.0, adsSens: 0.9, fov: 78, quality: 'high', volume: 0.8, voice: true, invertY: false, showFps: true, damageNumbers: true }, JSON.parse(localStorage.getItem('mf_settings') || '{}'));
     this.profile = Object.assign({ xp: 0, classes: JSON.parse(JSON.stringify(DEFAULT_CLASSES)), streaks: [...DEFAULT_STREAKS], selClass: 0, campaignBest: null }, JSON.parse(localStorage.getItem('mf_profile') || '{}'));
     if (!this.profile.classes || this.profile.classes.length < 5) this.profile.classes = JSON.parse(JSON.stringify(DEFAULT_CLASSES));
+    // 旧存档迁移：补齐配装的头盔与防弹衣（防弹衣可选，默认制式）
+    for (const c of this.profile.classes) {
+      if (!c.helmet) c.helmet = 'standard';
+      if (!c.vest) c.vest = 'standard';
+    }
     this.state = 'loading';
     this.paused = false;
     this.time = 0;

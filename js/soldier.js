@@ -69,12 +69,20 @@ function limbGeometry(rA, rB, len) {
   return new THREE.LatheGeometry(pts, 9);
 }
 
-export function createSoldierModel(styleName, weaponId, attachments = {}, camo = 'none') {
+export function createSoldierModel(styleName, weaponId, attachments = {}, camo = 'none', gear = {}) {
   const st = STYLES[styleName] || STYLES.ally;
   const cloth = mat(st.fab);
   const vest = vestMat(st.vest);
   const helm = vestMat(st.helmet);
   const dark = mat('darkMetal');
+  // 配装外观：头盔 / 防弹衣（未指定时沿用士兵样式默认，AI 与战役角色不受影响）
+  const helmetKind = gear.helmet || (st.head === 'helmet' ? (st.nvg ? 'nvg' : 'standard') : st.head);
+  const nvgOn = gear.helmet ? helmetKind === 'nvg' : !!st.nvg;
+  const vestKind = gear.vest || 'standard';
+  const hasVest = vestKind !== 'none';
+  const hasPack = vestKind === 'standard' || vestKind === 'heavy';
+  const heavyVest = vestKind === 'heavy';
+  const pouchMat = hasVest ? vest : cloth;
   const boot = mat('boot');
   const root = new THREE.Group();
   const hips = new THREE.Group(); hips.position.y = 0.95; root.add(hips);
@@ -88,8 +96,8 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
     const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.072, 0.36, 9), cloth); thigh.position.y = -0.22; leg.add(thigh);
     const dLeg = new THREE.Group(); leg.add(dLeg);
     // 大腿外侧杂物袋 + 绑带（近景细节）
-    const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.1, 0.075), vest); pocket.position.set(side * 0.065, -0.26, -0.01); dLeg.add(pocket);
-    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.025, 0.08), vest); flap.position.set(side * 0.065, -0.205, -0.01); dLeg.add(flap);
+    const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.1, 0.075), pouchMat); pocket.position.set(side * 0.065, -0.26, -0.01); dLeg.add(pocket);
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.025, 0.08), pouchMat); flap.position.set(side * 0.065, -0.205, -0.01); dLeg.add(flap);
     const strap = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.018, 0.15), dark); strap.position.set(0, -0.4, -0.005); dLeg.add(strap);
     // 裤腿褶皱
     const crease = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.012, 0.012), cloth); crease.position.set(0, -0.36, -0.086); dLeg.add(crease);
@@ -120,37 +128,59 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
 
   const torso = new THREE.Group(); hips.add(torso); parts.torso = torso;
   const belly = capsule(0.16, 0.25, cloth); belly.scale.set(1.15, 1, 0.8); belly.position.y = 0.22; torso.add(belly);
-  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.4, 0.28), vest); chest.position.y = 0.34; torso.add(chest);
-  // 胸前弹匣袋：袋体 + 翻盖 + 卡扣
-  for (let i = -1; i <= 1; i++) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.14, 0.07), vest); p.position.set(i * 0.125, 0.25, -0.17); torso.add(p);
-    const lid = new THREE.Mesh(new THREE.BoxGeometry(0.107, 0.035, 0.078), vest); lid.position.set(i * 0.125, 0.315, -0.172); torso.add(lid);
-    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.012, 0.01), dark); buckle.position.set(i * 0.125, 0.298, -0.21); torso.add(buckle);
+  // 防弹衣：无甲时只保留作战服；轻甲薄板；制式/重型加厚
+  if (hasVest) {
+    const thin = vestKind === 'light';
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(thin ? 0.38 : 0.42, thin ? 0.3 : 0.4, thin ? 0.22 : 0.28), vest);
+    chest.position.y = thin ? 0.36 : 0.34; torso.add(chest);
+    // 胸前弹匣袋：袋体 + 翻盖 + 卡扣
+    for (let i = -1; i <= 1; i++) {
+      const p = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.14, 0.07), vest); p.position.set(i * 0.125, 0.25, -0.17); torso.add(p);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(0.107, 0.035, 0.078), vest); lid.position.set(i * 0.125, 0.315, -0.172); torso.add(lid);
+      const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.012, 0.01), dark); buckle.position.set(i * 0.125, 0.298, -0.21); torso.add(buckle);
+    }
+    // 背心侧板（轻甲没有）与重型腹部护板
+    if (!thin) {
+      for (const sx of [-1, 1]) {
+        const sidePanel = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.26, 0.18), vest); sidePanel.position.set(sx * 0.215, 0.32, -0.01); torso.add(sidePanel);
+      }
+    }
+    if (heavyVest) {
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.125, 0.07, 12), vest); collar.position.y = 0.53; torso.add(collar);
+      const abdomen = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.16, 0.08), vest); abdomen.position.set(0, 0.12, -0.17); torso.add(abdomen);
+      const groin = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.14, 0.07), vest); groin.position.set(0, 0.0, -0.17); torso.add(groin);
+    }
   }
-  // 背心侧板与肩带
+  // 肩带
   for (const sx of [-1, 1]) {
-    const sidePanel = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.26, 0.18), vest); sidePanel.position.set(sx * 0.215, 0.32, -0.01); torso.add(sidePanel);
     const strap = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.06), dark); strap.position.set(sx * 0.15, 0.52, -0.06); torso.add(strap);
   }
   // 腰带：主体 + 扣具 + 两侧弹匣包 + 水壶
   const belt = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.07, 0.3), dark); belt.position.y = 0.05; torso.add(belt);
   const beltBuckle = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.02), dark); beltBuckle.position.set(0, 0.05, -0.155); torso.add(beltBuckle);
   for (const sx of [-1, 1]) {
-    const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.09, 0.06), vest); pouch.position.set(sx * 0.15, 0.0, -0.15); torso.add(pouch);
+    const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.09, 0.06), pouchMat); pouch.position.set(sx * 0.15, 0.0, -0.15); torso.add(pouch);
   }
-  const pack = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.36, 0.14), vest); pack.position.set(0, 0.36, 0.2); torso.add(pack);
-  const packLid = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 0.15), vest); packLid.position.set(0, 0.5, 0.2); torso.add(packLid);
-  const packStrap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.025, 0.16), dark); packStrap.position.set(0, 0.4, 0.2); torso.add(packStrap);
-  // 背包侧袋、提手与织带
-  for (const sx of [-1, 1]) {
-    const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.1), vest); pouch.position.set(sx * 0.19, 0.36, 0.2); torso.add(pouch);
-    const webbing = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.34, 0.015), dark); webbing.position.set(sx * 0.1, 0.37, 0.275); detailTorso.add(webbing);
+  // 背包：轻甲与无甲不携带
+  if (hasPack) {
+    const packD = heavyVest ? 0.18 : 0.14;
+    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.36, packD), vest); pack.position.set(0, 0.36, 0.2); torso.add(pack);
+    const packLid = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, packD + 0.01), vest); packLid.position.set(0, 0.5, 0.2); torso.add(packLid);
+    const packStrap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.025, packD + 0.02), dark); packStrap.position.set(0, 0.4, 0.2); torso.add(packStrap);
+    // 背包侧袋、提手与织带
+    for (const sx of [-1, 1]) {
+      const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.1), vest); pouch.position.set(sx * 0.19, 0.36, 0.2); torso.add(pouch);
+      const webbing = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.34, 0.015), dark); webbing.position.set(sx * 0.1, 0.37, 0.275); detailTorso.add(webbing);
+    }
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.02, 0.03), dark); handle.position.set(0, 0.556, 0.2); torso.add(handle);
   }
-  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.02, 0.03), dark); handle.position.set(0, 0.556, 0.2); torso.add(handle);
   // 肩部三角肌与肩甲、胸前织带
   for (const sx of [-1, 1]) {
     const delt = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), cloth); delt.position.set(sx * 0.21, 0.47, 0); delt.scale.set(1, 1.1, 0.9); torso.add(delt);
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.06, 0.16), vest); pad.position.set(sx * 0.2, 0.532, 0); torso.add(pad);
+    if (hasVest && vestKind !== 'light') {
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(heavyVest ? 0.15 : 0.13, heavyVest ? 0.08 : 0.06, heavyVest ? 0.18 : 0.16), vest);
+      pad.position.set(sx * 0.2, heavyVest ? 0.54 : 0.532, 0); torso.add(pad);
+    }
   }
   const chestStrap = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.035, 0.02), dark); chestStrap.position.set(0, 0.47, -0.155); detailTorso.add(chestStrap);
   const zip = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.28, 0.01), dark); zip.position.set(0, 0.35, -0.147); detailTorso.add(zip);
@@ -183,22 +213,31 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
     const nose = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.032, 6), headMat); nose.position.set(0, 0.098, -0.115); nose.rotation.x = -Math.PI / 2; neck.add(nose);
     const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.006, 0.008), mouthM); mouth.position.set(0, 0.066, -0.104); neck.add(mouth);
   }
-  if (st.head === 'helmet') {
-    const h = new THREE.Mesh(new THREE.SphereGeometry(0.135, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), helm);
-    h.position.y = 0.13; neck.add(h);
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.04), helm); rim.position.set(0, 0.14, -0.12); neck.add(rim);
+  if (helmetKind === 'helmet' || helmetKind === 'standard' || helmetKind === 'nvg' || helmetKind === 'heavy') {
+    const heavyHelm = helmetKind === 'heavy';
+    const h = new THREE.Mesh(new THREE.SphereGeometry(heavyHelm ? 0.145 : 0.135, 20, 12, 0, Math.PI * 2, 0, Math.PI * (heavyHelm ? 0.6 : 0.55)), helm);
+    h.position.y = heavyHelm ? 0.125 : 0.13; neck.add(h);
+    const rim = new THREE.Mesh(new THREE.BoxGeometry(heavyHelm ? 0.28 : 0.26, heavyHelm ? 0.045 : 0.03, 0.04), helm); rim.position.set(0, heavyHelm ? 0.135 : 0.14, -0.12); neck.add(rim);
     // 侧轨、后颈护片与顶部织带
     for (const sx of [-1, 1]) {
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.022, 0.11), dark); rail.position.set(sx * 0.136, 0.155, -0.02); neck.add(rail);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.022, 0.11), dark); rail.position.set(sx * (heavyHelm ? 0.146 : 0.136), 0.155, -0.02); neck.add(rail);
     }
-    const nape = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.06, 0.03), helm); nape.position.set(0, 0.07, 0.115); nape.rotation.x = 0.25; neck.add(nape);
-    const topStrap = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.005, 0.2), vestMat(0x3d3a30)); topStrap.position.set(0, 0.245, 0); neck.add(topStrap);
+    const nape = new THREE.Mesh(new THREE.BoxGeometry(0.19, heavyHelm ? 0.09 : 0.06, 0.03), helm); nape.position.set(0, 0.07, 0.115); nape.rotation.x = 0.25; neck.add(nape);
+    const topStrap = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.005, 0.2), vestMat(0x3d3a30)); topStrap.position.set(0, heavyHelm ? 0.255 : 0.245, 0); neck.add(topStrap);
     // 耳罩 + 盔带
     for (const sx of [-1, 1]) {
-      const ear = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.09, 0.1), helm); ear.position.set(sx * 0.125, 0.1, 0.0); neck.add(ear);
+      const ear = new THREE.Mesh(new THREE.BoxGeometry(heavyHelm ? 0.045 : 0.035, heavyHelm ? 0.11 : 0.09, 0.1), helm);
+      ear.position.set(sx * (heavyHelm ? 0.135 : 0.125), 0.1, 0.0); neck.add(ear);
       const band = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.09, 0.012), dark); band.position.set(sx * 0.1, 0.04, -0.02); band.rotation.z = sx * 0.25; neck.add(band);
     }
-    if (st.nvg) {
+    if (heavyHelm) {
+      // 重型头盔：可翻起的护目面罩支架 + 前额加厚护板
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.055, 0.05), helm); brow.position.set(0, 0.175, -0.115); neck.add(brow);
+      const visor = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.07, 0.015), mat('glass')); visor.position.set(0, 0.14, -0.145); visor.rotation.x = 0.25; neck.add(visor);
+      const visorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.012, 0.022), dark); visorFrame.position.set(0, 0.178, -0.142); neck.add(visorFrame);
+      const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.05), helm); jaw.position.set(0, 0.055, -0.115); neck.add(jaw);
+    }
+    if (nvgOn) {
       // NVG：安装座 + 竖臂 + 双镜筒
       const mount = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.03, 0.035), dark); mount.position.set(0, 0.2, -0.115); neck.add(mount);
       const arm = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.045, 0.03), dark); arm.position.set(0, 0.22, -0.14); neck.add(arm);
@@ -210,6 +249,11 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
         const e = new THREE.Mesh(new THREE.CircleGeometry(0.019, 12), eyeM); e.position.set(x, 0.225, -0.216); e.rotation.y = Math.PI; neck.add(e);
       }
     }
+  } else if (helmetKind === 'none') {
+    // 不戴头盔：只戴一顶紧身头套，保留护目镜
+    const skull = vestMat(0x2f2d28);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.122, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), skull); cap.position.y = 0.135; neck.add(cap);
+    const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.124, 0.124, 0.026, 16), skull); cuff.position.y = 0.097; neck.add(cuff);
   } else if (st.head === 'shemagh') {
     const s = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), vestMat(0x9a8a74)); s.position.y = 0.12; s.scale.set(1, 1.05, 1.05); neck.add(s);
     const band = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.05, 0.03), vestMat(0x9a8a74)); band.position.set(0, 0.07, -0.11); neck.add(band);

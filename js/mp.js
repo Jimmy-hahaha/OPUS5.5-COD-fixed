@@ -96,6 +96,7 @@ export class MPMatch {
       primary: { id: cls.primary, att: cls.patt || {}, camo: cls.pcamo },
       secondary: { id: cls.secondary, att: cls.satt || {}, camo: cls.scamo },
       lethal: cls.lethal, tactical: cls.tactical, perks: cls.perks,
+      gear: { helmet: cls.helmet, vest: cls.vest },
     };
   }
   applyClass(idx) {

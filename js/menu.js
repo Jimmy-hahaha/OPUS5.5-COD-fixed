@@ -1,7 +1,7 @@
 // 菜单系统：主菜单、战役简报、多人大厅、配装、枪匠、设置、暂停、结算
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { WEAPONS, PRIMARY_ORDER, SECONDARY_ORDER, SLOT_NAMES, ATTACHMENTS, CAMOS, computeStats, statBars, PERKS, LETHALS, TACTICALS, KILLSTREAKS, MP_MAPS, MP_MODES, attachmentAllowed, findAttachment } from './data.js';
+import { WEAPONS, PRIMARY_ORDER, SECONDARY_ORDER, SLOT_NAMES, ATTACHMENTS, CAMOS, computeStats, statBars, PERKS, LETHALS, TACTICALS, KILLSTREAKS, MP_MAPS, MP_MODES, HELMETS, VESTS, attachmentAllowed, findAttachment } from './data.js';
 import { buildGun } from './gunmodel.js';
 import { createSoldierModel, animateSoldier } from './soldier.js';
 import { mat, camoSwatch } from './materials.js';
@@ -130,11 +130,11 @@ export class Menu {
     this.setSoldier(this.game.profile.classes[this.selClass]);
   }
   setSoldier(cls) {
-    const key = cls.primary + JSON.stringify(cls.patt) + cls.pcamo;
+    const key = [cls.primary, JSON.stringify(cls.patt), cls.pcamo, cls.helmet, cls.vest].join('|');
     if (this.soldierKey === key) return;
     this.soldierKey = key;
     if (this.soldier) this.scene3d.remove(this.soldier.root);
-    const p = this.soldier = createSoldierModel('ally', cls.primary, cls.patt, cls.pcamo);
+    const p = this.soldier = createSoldierModel('ally', cls.primary, cls.patt, cls.pcamo, { helmet: cls.helmet, vest: cls.vest });
     p.root.position.set(0.95, 0, 0.2);
     p.root.rotation.y = Math.PI - 0.95;
     this.scene3d.add(p.root);
@@ -542,6 +542,8 @@ export class Menu {
     this.setSoldier(c);
     const attNames = (id, att) => Object.entries(att || {}).map(([s, a]) => (findAttachment(s, a) || {}).name).filter(Boolean).join(' · ') || '无配件';
     const L = LETHALS.find(x => x.id === c.lethal), T = TACTICALS.find(x => x.id === c.tactical);
+    const H = HELMETS.find(x => x.id === (c.helmet || 'standard')) || HELMETS[1];
+    const V = VESTS.find(x => x.id === (c.vest || 'standard')) || VESTS[2];
     const streaks = P.streaks.map(id => KILLSTREAKS.find(k => k.id === id)).sort((a, b) => a.kills - b.kills);
     const r = this.render(`
       <div class="loadout">
@@ -558,6 +560,8 @@ export class Menu {
             <div class="slotc" data-s="secondary"><div class="sl">副武器 · ${WEAPONS[c.secondary].cls}</div><div class="sv">${WEAPONS[c.secondary].name}</div><div class="ss">${attNames(c.secondary, c.satt)}</div><div style="margin-top:10px;display:flex;gap:8px"><button class="btn small" data-g="secondary">枪匠</button><button class="btn small ghost" data-w="secondary">更换武器</button></div></div>
             <div class="slotc" data-p="lethal"><div class="sl">致命装备</div><div class="sv">${L ? L.name : '无'}</div><div class="ss">${L ? L.desc : ''}</div></div>
             <div class="slotc" data-p="tactical"><div class="sl">战术装备</div><div class="sv">${T ? T.name : '无'}</div><div class="ss">${T ? T.desc : ''}</div></div>
+            <div class="slotc" data-p="helmet"><div class="sl">头盔</div><div class="sv">${H.icon} ${H.name}</div><div class="ss">${H.desc}</div><div class="ss" style="color:var(--acc)">头部减伤 ${Math.round(H.headArmor * 100)}% · 机动 ${Math.round(H.mobility * 100)}%</div></div>
+            <div class="slotc" data-p="vest"><div class="sl">防弹衣 · 可选</div><div class="sv">${V.icon} ${V.name}</div><div class="ss">${V.desc}</div><div class="ss" style="color:var(--acc)">躯干减伤 ${Math.round(V.bodyArmor * 100)}% · 机动 ${Math.round(V.mobility * 100)}%</div></div>
             <div class="slotc wide" data-p="perks"><div class="sl">技能 PERK</div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">${c.perks.map(id => { const p = this.perk(id); return `<div class="perkpill">${p.icon} ${p.name}</div>`; }).join('')}</div></div>
             <div class="slotc wide" data-p="streaks"><div class="sl">连杀奖励（全配装通用）</div><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">${streaks.map(k => `<div class="perkpill" style="background:rgba(255,180,0,.12);border-color:rgba(255,180,0,.4)">${k.icon} ${k.name} · ${k.kills}杀</div>`).join('')}</div></div>
           </div>
@@ -572,6 +576,8 @@ export class Menu {
     this.on(r, '.slotc[data-s]', el => this.pickWeapon(ci, el.dataset.s));
     this.on(r, '[data-p=lethal]', () => this.pickSimple(ci, 'lethal'));
     this.on(r, '[data-p=tactical]', () => this.pickSimple(ci, 'tactical'));
+    this.on(r, '[data-p=helmet]', () => this.pickGear(ci, 'helmet'));
+    this.on(r, '[data-p=vest]', () => this.pickGear(ci, 'vest'));
     this.on(r, '[data-p=perks]', () => this.pickPerks(ci));
     this.on(r, '[data-p=streaks]', () => this.pickStreaks());
     this.on(r, '[data-a=back]', () => { if (this.loadoutFrom === 'lobby') this.showLobby(); else if (this.loadoutFrom === 'netRoom') this.showNetRoom(); else if (this.loadoutFrom === 'training') this.showTraining(); else if (this.loadoutFrom === 'pause') this.showPause(); else this.showMain(); });
@@ -611,6 +617,32 @@ export class Menu {
     const c = this.game.profile.classes[ci];
     const list = kind === 'lethal' ? LETHALS : TACTICALS;
     const d = this.picker(kind === 'lethal' ? '致命装备' : '战术装备', '按 ' + (kind === 'lethal' ? 'G' : 'Q') + ' 使用', `<div class="pick-grid">${list.map(x => `<div class="pick ${c[kind] === x.id ? 'sel' : ''}" data-id="${x.id}"><b>${x.name}</b><span>${x.desc}</span><span style="color:var(--acc)">携带数量 ×${x.count}</span></div>`).join('')}</div>`);
+    this.on(d, '.pick', el => { c[kind] = el.dataset.id; this.game.saveProfile(); this.showLoadouts(); });
+  }
+  pickGear(ci, kind) {
+    const c = this.game.profile.classes[ci];
+    const cur = c[kind] || 'standard';
+    const list = kind === 'helmet' ? HELMETS : VESTS;
+    const isHelmet = kind === 'helmet';
+    // 与武器卡片一致：数值条 + 特性标签
+    const armorMax = isHelmet ? 0.3 : 0.22;
+    const bar = (k, v, text) => `<div class="stat" style="margin-top:6px">${k}${text ? ` <span style="color:#bbb">${text}</span>` : ''}<div class="bar"><div class="b0" style="width:${Math.round(Math.max(0, Math.min(1, v)) * 100)}%"></div></div></div>`;
+    const card = (x) => {
+      const armor = isHelmet ? x.headArmor : x.bodyArmor;
+      const tags = x.tags.map(t => `<div class="perkpill" style="font-size:11px;padding:4px 8px">${t}</div>`).join('');
+      return `<div class="pick ${cur === x.id ? 'sel' : ''}" data-id="${x.id}">
+        <div class="cat">${isHelmet ? '头部防护' : '躯干防护'} · ${Math.round(armor * 100)}%</div>
+        <b>${x.icon} ${x.name}</b>
+        <span>${x.desc}</span>
+        ${bar(isHelmet ? '头部减伤' : '躯干减伤', armor / armorMax, `${Math.round(armor * 100)}%`)}
+        ${bar('机动性', (x.mobility - 0.85) / 0.15, `${Math.round(x.mobility * 100)}%`)}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">${tags}</div>
+      </div>`;
+    };
+    const d = this.picker(
+      isHelmet ? '选择头盔' : '选择防弹衣',
+      isHelmet ? '每套配装可单独选择 · 数值越高防护越好' : '防弹衣为可选项，也可以不穿 · 数值越高防护越好',
+      `<div class="pick-grid" style="grid-template-columns:repeat(auto-fill,minmax(250px,1fr))">${list.map(card).join('')}</div>`);
     this.on(d, '.pick', el => { c[kind] = el.dataset.id; this.game.saveProfile(); this.showLoadouts(); });
   }
   pickPerks(ci) {

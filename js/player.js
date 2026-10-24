@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { WeaponSystem } from './weapons.js';
 import { clamp, damp, lerp, raySphere, rayAABB, DEG } from './util.js';
-import { WEAPONS, LETHALS, TACTICALS } from './data.js';
+import { WEAPONS, LETHALS, TACTICALS, gearOf } from './data.js';
 
 export class Player {
   constructor(game, opts) {
@@ -21,6 +21,8 @@ export class Player {
     this.perks = new Set(opts.perks || []);
     this.stats = { kills: 0, deaths: 0, shots: 0, hits: 0, headshots: 0, score: 0, streak: 0, assists: 0, captures: 0 };
     this.dmgMul = opts.dmgMul || 1;
+    // 配装头盔/防弹衣：头部与躯干减伤、移动速度倍率（未配置配装时保持 1，不影响战役）
+    this.headMul = 1; this.bodyMul = 1; this.gearSpeed = 1;
     this.ws = new WeaponSystem(game, this);
     this.lethal = null; this.tactical = null;
     this.lastAttacker = null;
@@ -37,6 +39,13 @@ export class Player {
     const L = LETHALS.find(l => l.id === loadout.lethal), T = TACTICALS.find(t => t.id === loadout.tactical);
     this.lethal = L ? { id: L.id, name: L.name, count: L.count + (loadout.extraLethal || 0), max: L.count + (loadout.extraLethal || 0) } : null;
     this.tactical = T ? { id: T.id, name: T.name, count: T.count + (loadout.extraTac || 0), max: T.count + (loadout.extraTac || 0) } : null;
+    // 头盔 / 防弹衣数值：只在配装明确携带 gear 时生效
+    const gear = loadout.gear || {};
+    const H = gear.helmet ? gearOf(gear.helmet, 'helmet') : null;
+    const V = gear.vest ? gearOf(gear.vest, 'vest') : null;
+    this.headMul = 1 - (H ? H.headArmor : 0);
+    this.bodyMul = 1 - (V ? V.bodyArmor : 0);
+    this.gearSpeed = (H ? H.mobility : 1) * (V ? V.mobility : 1);
     this.loadout = loadout;
   }
   respawn(pos, yaw) {
@@ -64,7 +73,8 @@ export class Player {
   }
   takeDamage(dmg, info) {
     if (!this.alive || this.game.godMode) return false;
-    this.hp -= dmg * this.dmgMul;
+    // 头盔挡爆头、防弹衣挡躯干（爆炸与燃烧按躯干结算）
+    this.hp -= dmg * this.dmgMul * (info.head ? this.headMul : this.bodyMul);
     this.dmgT = 0;
     this.lastAttacker = info.attacker;
     if (info.attacker && info.attacker.pos) this.game.hud.damageFrom(info.attacker.pos);
@@ -122,7 +132,7 @@ export class Player {
     let speed = 4.7 * mob;
     if (this.sprinting) speed = 7.1 * mob * (this.hasPerk('doubletime') ? 1.08 : 1);
     else if (this.crouchT > 0.5) speed = 2.4 * (this.hasPerk('doubletime') ? 1.3 : 1);
-    speed *= lerp(1, 0.55, ws.adsT);
+    speed *= lerp(1, 0.55, ws.adsT) * this.gearSpeed;
     if (this.stunT > 0) { this.stunT -= dt; speed *= 0.5; }
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     let wx = fx * cy - fz * sy, wz = -fx * sy - fz * cy;

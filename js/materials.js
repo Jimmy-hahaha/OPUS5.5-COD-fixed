@@ -110,7 +110,8 @@ function buildMaterials() {
   MATS.gunGreen = new THREE.MeshStandardMaterial({ color: 0x4a5236, roughness: 0.7, metalness: 0.1 });
   MATS.gunWood = new THREE.MeshStandardMaterial({ map: TEX.wood.map, normalMap: TEX.wood.normalMap, color: 0xb06a3a, roughness: 0.55 });
   MATS.gunSteel = new THREE.MeshStandardMaterial({ color: 0x9aa0a6, roughness: 0.25, metalness: 0.95 });
-  MATS.lens = new THREE.MeshBasicMaterial({ color: 0x8fb8c8, transparent: true, opacity: 0.15, depthWrite: false, side: THREE.DoubleSide });
+  // 镜片镀膜：只留一层很淡的反光，避免镜片把背后的画面压暗
+  MATS.lens = new THREE.MeshBasicMaterial({ color: 0x8fb8c8, transparent: true, opacity: 0.06, depthWrite: false, side: THREE.DoubleSide });
   MATS.lensDark = new THREE.MeshStandardMaterial({ color: 0x0a1418, roughness: 0.05, metalness: 1 });
   // depthTest 保持开启：准星必须被镜框遮挡，否则侧看/抬枪时会“透出”黑色边框
   MATS.reticle = new THREE.MeshBasicMaterial({ color: 0xff2a2a, transparent: true, depthWrite: false, side: THREE.DoubleSide });
