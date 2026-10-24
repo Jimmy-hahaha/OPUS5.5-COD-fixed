@@ -368,7 +368,7 @@ export class MPMatch {
         }
       }
     }
-    if (this.wpT > 0) { this.wpT -= dt; game.grade.uniforms.wp.value = Math.min(1, this.wpT / 3) * 0.6; for (const e of this.enemiesOf(pl.team)) if (Math.random() < dt * 2) e.takeDamage(6, { attacker: pl, weapon: '白磷弹', explosive: true, dir: new THREE.Vector3(0, -1, 0) }); }
+    if (this.wpT > 0) { this.wpT -= dt; game.grade.uniforms.wp.value = Math.min(1, this.wpT / 3) * 0.6; for (const e of this.enemiesOf(pl.team)) if (Math.random() < dt * 2) e.takeDamage(6, { attacker: pl, weapon: '白磷弹', explosive: true, burn: true, dir: new THREE.Vector3(0, -1, 0) }); }
     else game.grade.uniforms.wp.value = 0;
     // 连杀奖励
     for (const a of this.active) a.update(dt);
@@ -503,7 +503,9 @@ export class Sentry {
   }
   takeDamage(d, info) {
     if (!this.alive) return false;
-    this.hp -= info.explosive ? d * 2 : d * 0.5;
+    const dmg = info.explosive ? d * 2 : d * 0.5;
+    this.hp -= dmg;
+    if (this.game.damageNumber) this.game.damageNumber(this, dmg, info, this.hp <= 0);
     if (this.hp <= 0) { this.destroy(); if (info.attacker && info.attacker.isPlayer) this.game.hud.popup('摧毁哨戒机枪 +100', '', true); return true; }
     return false;
   }

@@ -41,8 +41,10 @@ class RangeTarget {
     this.name = this.moving ? '移动靶' : '固定靶';
     this.team = 'R';                  // 与玩家队伍不同，弹道检测才会命中
     this.alive = true;
-    this.hp = 1;
-    this.down = false; this.downT = 0; this.flip = 0;
+    // 靶子有耐久：单发命中只会让它后仰，累计伤害达到上限才倒下
+    this.maxHp = cfg.hp || 160;
+    this.hp = this.maxHp;
+    this.down = false; this.downT = 0; this.flip = 0; this.kick = 0;
     this.a = (cfg.from || cfg.pos).clone();
     this.b = cfg.to ? cfg.to.clone() : null;
     this.baseY = this.moving ? 0.16 : 0;
@@ -88,7 +90,7 @@ class RangeTarget {
 
   sync() {
     this.mesh.position.set(this.pos.x, this.baseY, this.pos.z);
-    this.pivot.rotation.x = this.flip * (Math.PI * 0.5 - 0.06);
+    this.pivot.rotation.x = this.flip * (Math.PI * 0.5 - 0.06) - this.kick;
     this.center.set(this.pos.x, this.baseY + PLATE_Y, this.pos.z);
   }
 
@@ -104,6 +106,7 @@ class RangeTarget {
       if (this.downT <= 0) this.down = false;
     }
     this.flip = damp(this.flip, this.down ? 1 : 0, 14, dt);
+    this.kick = damp(this.kick, 0, 16, dt);
     this.sync();
   }
 
@@ -113,7 +116,10 @@ class RangeTarget {
     if (!this.alive || this.down || this.flip > 0.15) return null;
     const c = this.center;
     const t = raySphere(o.x, o.y, o.z, d.x, d.y, d.z, c.x, c.y, c.z, PLATE_R);
-    return t >= 0 && t < maxT ? { t, part: 'body' } : null;
+    if (t < 0 || t >= maxT) return null;
+    // 命中靶心按“爆头”结算，伤害数字与伤害倍率都会更高
+    const hx = o.x + d.x * t - c.x, hy = o.y + d.y * t - c.y;
+    return { t, part: Math.hypot(hx, hy) <= RING_R[0] ? 'head' : 'body' };
   }
 
   takeDamage(dmg, info) {
@@ -126,10 +132,18 @@ class RangeTarget {
       if (r <= RING_R[0]) ring = 0;
       else if (r <= RING_R[1]) ring = 1;
     }
-    this.down = true;
-    this.downT = this.moving ? 1.3 : 1.8;
-    this.range.onHit(this, ring, info);
-    return true;
+    this.hp -= dmg;
+    this.kick = Math.min(0.2, this.kick + 0.06);
+    const knocked = this.hp <= 0;
+    if (this.game.damageNumber) this.game.damageNumber(this, dmg, info || {}, knocked);
+    if (knocked) {
+      // 打空耐久才翻倒，立起后耐久回满
+      this.hp = this.maxHp;
+      this.down = true;
+      this.downT = this.moving ? 1.3 : 1.8;
+    }
+    this.range.onHit(this, ring, info, knocked);
+    return knocked;
   }
 
   dispose() { this.game.scene.remove(this.mesh); }
@@ -193,15 +207,20 @@ export class TrainingRange {
     if (this.game.player) this.game.player.equip(this.loadout(P.classes[idx]));
   }
 
-  // 命中结算：环数 0=靶心 1=内环 2=靶面
-  onHit(target, ring, info) {
+  // 命中结算：环数 0=靶心 1=内环 2=靶面；knocked 表示这一发打空了耐久、靶子倒下
+  onHit(target, ring, info, knocked = false) {
     const pts = [150, 100, 50][ring] ?? 50;
-    this.score += pts; this.hits++; this.downs++;
+    this.score += pts; this.hits++;
     // 同一次射击（霰弹的多发弹丸）命中多个靶时，只算一次有效射击
     if (this.lastHitTime !== this.game.time) { this.lastHitTime = this.game.time; this.hitShots++; }
     if (ring === 0) this.bullseyes++;
     const hud = this.game.hud;
-    hud.popup(`+${pts}${ring === 0 ? ' 靶心' : ''}`, ring === 0 ? '#ffd24a' : '#fff', ring === 0);
+    if (knocked) {
+      this.downs++; this.score += 50;
+      hud.popup('靶子击倒 +50', '#8fe06a', true);
+    } else {
+      hud.popup(`+${pts}${ring === 0 ? ' 靶心' : ''}`, ring === 0 ? '#ffd24a' : '#fff', ring === 0);
+    }
     this.game.audio.click(ring === 0 ? 2600 : 1750, 0.06, 0.45, target.center);
     if (this.score > this.best) {
       this.best = this.score;

@@ -13,6 +13,7 @@ export class HUD {
     this.mm = $('minimap').getContext('2d');
     this.hitT = 0; this.flashT = 0; this.flashMax = 1; this.alertT = 0;
     this.dmgDirs = [];
+    this.dmgNums = []; this.dmgMerges = new Map();
     this.subQueue = []; this.subT = 0;
     this.announceT = 0;
     this.buildCompass();
@@ -35,8 +36,9 @@ export class HUD {
     $('killfeed').innerHTML = ''; $('popups').innerHTML = ''; $('subtitles').innerHTML = ''; $('objective').innerHTML = '';
     $('markers').innerHTML = ''; $('dmgDirs').innerHTML = ''; this.dmgDirs = []; this.subQueue = []; this.subT = 0;
     $('fade').style.opacity = 0; $('flashOverlay').style.opacity = 0; this.flashT = 0;
-    $('announce').style.opacity = 0; $('scorebar').innerHTML = ''; $('streaks').innerHTML = '';
+    $('announce').style.opacity = 0; $('announce').style.transform = 'translate(-50%, -10px)'; $('scorebar').innerHTML = ''; $('streaks').innerHTML = '';
     this.markerEls = {};
+    this.clearDamageNumbers();
   }
   hitmarker(kill, head) {
     const h = $('hitmarker');
@@ -66,6 +68,61 @@ export class HUD {
     while (kf.children.length > 6) kf.lastChild.remove();
     setTimeout(() => d.remove(), 6000);
   }
+  // 伤害数字：point 为世界坐标；opts.merge 用于燃烧/白磷这类每帧结算的持续伤害
+  damageNumber(point, amount, opts = {}) {
+    if (!this.game.camera) return;
+    if (opts.merge) {
+      const key = opts.target;
+      let m = this.dmgMerges.get(key);
+      if (!m) {
+        m = { amount: 0, point: point.clone(), start: this.game.time, head: !!opts.head };
+        this.dmgMerges.set(key, m);
+      }
+      m.amount += amount; m.point.copy(point); m.head = m.head || !!opts.head;
+      return;
+    }
+    this.spawnDamageNum(point, amount, opts);
+  }
+  spawnDamageNum(point, amount, opts = {}) {
+    const v = _v.copy(point).project(this.game.camera);
+    const W = window.innerWidth, H = window.innerHeight;
+    const x = (v.x * 0.5 + 0.5) * W, y = (-v.y * 0.5 + 0.5) * H;
+    if (v.z > 1 || v.z < -1 || x < -40 || x > W + 40 || y < -40 || y > H + 40) return;
+    const el = document.createElement('div');
+    el.className = 'dmgnum' + (opts.head ? ' head' : '') + (opts.kill ? ' kill' : '');
+    const val = Math.round(amount * 10) / 10;
+    el.textContent = (Number.isInteger(val) ? String(val) : val.toFixed(1)) + (opts.head ? ' ✹' : '');
+    el.style.left = (x + (Math.random() - 0.5) * 26) + 'px';
+    el.style.top = (y + (Math.random() - 0.5) * 18) + 'px';
+    $('dmgNums').appendChild(el);
+    const rec = { el };
+    this.dmgNums.push(rec);
+    while (this.dmgNums.length > 28) this.dmgNums.shift().el.remove();
+    setTimeout(() => {
+      el.remove();
+      const i = this.dmgNums.indexOf(rec);
+      if (i >= 0) this.dmgNums.splice(i, 1);
+    }, 900);
+  }
+  flushDamageMerges() {
+    if (!this.dmgMerges.size) return;
+    const now = this.game.time;
+    for (const [target, m] of this.dmgMerges) {
+      if (now - m.start >= 0.3) {
+        this.spawnDamageNum(m.point, m.amount, { head: m.head });
+        this.dmgMerges.delete(target);
+      } else if (!target.alive) {
+        this.dmgMerges.delete(target);
+      }
+    }
+  }
+  clearDamageNumbers() {
+    for (const d of this.dmgNums) d.el.remove();
+    this.dmgNums = [];
+    this.dmgMerges.clear();
+    const box = $('dmgNums');
+    if (box) box.innerHTML = '';
+  }
   popup(text, color = '#fff', medal = false) {
     const p = $('popups');
     const d = document.createElement('div'); d.className = 'pop' + (medal ? ' medal' : ''); d.style.color = medal ? '' : color; d.textContent = text;
@@ -76,7 +133,7 @@ export class HUD {
   announce(title, sub = '', dur = 3) {
     const a = $('announce');
     a.innerHTML = title + (sub ? `<small>${sub}</small>` : '');
-    a.style.opacity = 1; this.announceT = dur;
+    a.style.opacity = 1; a.style.transform = 'translate(-50%, 0)'; this.announceT = dur;
   }
   subtitle(speaker, text, dur) {
     this.subQueue.push({ speaker, text, dur: dur || Math.max(2.5, text.length * 0.16) });
@@ -108,6 +165,7 @@ export class HUD {
   update(dt) {
     const game = this.game, pl = game.player;
     if (!pl) return;
+    this.flushDamageMerges();
     // FPS
     this.fpsAcc += dt; this.fpsN++;
     if (this.fpsAcc > 0.5) { $('fps').textContent = game.settings.showFps ? Math.round(this.fpsN / this.fpsAcc) + ' FPS' : ''; this.fpsAcc = 0; this.fpsN = 0; }
@@ -173,7 +231,7 @@ export class HUD {
       game.audio.say(s.text, 1.15, s.speaker.includes('指挥部') ? 0.7 : 0.9);
       if (s.speaker) game.audio.beep(1);
     }
-    if (this.announceT > 0) { this.announceT -= dt; if (this.announceT <= 0) $('announce').style.opacity = 0; }
+    if (this.announceT > 0) { this.announceT -= dt; if (this.announceT <= 0) { const a = $('announce'); a.style.opacity = 0; a.style.transform = 'translate(-50%, -10px)'; } }
     // 瞄准敌人名称
     const en = $('enemyName');
     let name = '';

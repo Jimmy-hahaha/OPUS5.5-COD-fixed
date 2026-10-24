@@ -52,6 +52,7 @@ export class NetPlayer {
     info.group.position.set(0.08, 0.4, -0.3);
     this.model.torso.add(info.group);
     this.gunGroup = info.group;
+    this.model.gun = info.group;
     this.model.muzzle = info.muzzle;
   }
   die() {
@@ -91,8 +92,10 @@ export class NetPlayer {
   // 被本地武器击中：只做本地表现，真正的结算发回受害者客户端
   takeDamage(dmg, info) {
     if (!this.alive) return false;
+    info = info || {};
     this.hp -= dmg;
     this.anim.recoil = 0.6;
+    if (this.game.damageNumber) this.game.damageNumber(this, dmg, info, this.hp <= 0);
     const net = this.game.net;
     const pl = this.game.player;
     if (net && (info.attacker === pl)) {

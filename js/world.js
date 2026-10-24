@@ -169,7 +169,68 @@ export class World {
   }
 
   crate(x, z, s = 1.2, y = 0, rot = 0) {
-    this.box(x, y, z, s, s, s, 'crate', { texScale: s, rotY: rot });
+    const g = new THREE.Group();
+    const o = s / 2, t = s * 0.075;
+    const panel = new THREE.Mesh(boxGeo(s * 0.96, s * 0.96, s * 0.96, s), mat('crate'));
+    panel.position.y = s / 2; g.add(panel);
+    const wm = mat('wood');
+    const bar = (w, h, d, px, py, pz) => {
+      const m = new THREE.Mesh(boxGeo(w, h, d, s * 0.7), wm);
+      m.position.set(px, py, pz); g.add(m);
+    };
+    // 四根竖框
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) bar(t, s, t, sx * (o - t / 2), s / 2, sz * (o - t / 2));
+    // 上下横框
+    for (const sy of [t / 2 + 0.01, s - t / 2 - 0.01]) {
+      for (const sz of [-1, 1]) bar(s, t, t, 0, sy, sz * (o - t / 2));
+      for (const sx of [-1, 1]) bar(t, t, s, sx * (o - t / 2), sy, 0);
+    }
+    // 前后交叉斜撑
+    const diag = s * 0.88;
+    for (const sz of [-1, 1]) for (const dir of [-1, 1]) {
+      const m = new THREE.Mesh(boxGeo(diag, t * 0.8, t * 0.5, s * 0.7), wm);
+      m.position.set(0, s / 2, sz * (o + 0.001));
+      m.rotation.z = dir * Math.PI / 4; g.add(m);
+    }
+    // 四角包角铁皮：贴在外表面并略微凸出，避免与木框共面造成闪烁
+    const ct = s * 0.02, cl = s * 0.18;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const sy of [-1, 1]) {
+      const py = s / 2 + sy * (o - cl / 2 - t * 0.4);
+      const inner = o - cl / 2 - t * 0.4;
+      const bx = new THREE.Mesh(boxGeo(ct, cl, cl, s), mat('darkMetal'));
+      bx.position.set(sx * (o + ct / 2 + 0.002), py, sz * inner); g.add(bx);
+      const bz = new THREE.Mesh(boxGeo(cl, cl, ct, s), mat('darkMetal'));
+      bz.position.set(sx * inner, py, sz * (o + ct / 2 + 0.002)); g.add(bz);
+    }
+    // 前面的喷漆标识
+    const label = new THREE.Mesh(new THREE.PlaneGeometry(s * 0.34, s * 0.14), mat('yellowPaint'));
+    label.position.set(0, s * 0.62, o + 0.008); g.add(label);
+    // 正面金属锁扣与背面铰链
+    const latchM = mat('darkMetal');
+    for (const sx of [-1, 1]) {
+      const plate = new THREE.Mesh(boxGeo(s * 0.07, s * 0.12, s * 0.012, s), latchM);
+      plate.position.set(sx * s * 0.24, s * 0.55, o + 0.01); g.add(plate);
+      const hook = new THREE.Mesh(boxGeo(s * 0.035, s * 0.03, s * 0.022, s), latchM);
+      hook.position.set(sx * s * 0.24, s * 0.49, o + 0.02); g.add(hook);
+      const hinge = new THREE.Mesh(boxGeo(s * 0.08, s * 0.1, s * 0.014, s), latchM);
+      hinge.position.set(sx * s * 0.22, s * 0.78, -o - 0.01); g.add(hinge);
+    }
+    // 底部磨损与泥污
+    const wearM = mat('rust');
+    for (const sz of [-1, 1]) {
+      const strip = new THREE.Mesh(boxGeo(s * 0.92, s * 0.05, 0.006, s), wearM);
+      strip.position.set(0, s * 0.06, sz * (o + 0.004)); g.add(strip);
+    }
+    for (const sx of [-1, 1]) {
+      const strip = new THREE.Mesh(boxGeo(0.006, s * 0.05, s * 0.92, s), wearM);
+      strip.position.set(sx * (o + 0.004), s * 0.06, 0); g.add(strip);
+    }
+    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    mergeGroup(g);
+    g.position.set(x, y, z); g.rotation.y = rot;
+    this.root.add(g);
+    this.box(x, y, z, s, s, s, 'crate', { visible: false, rotY: rot });
+    return g;
   }
   crateStack(x, z) {
     this.crate(x, z, 1.2); this.crate(x + 1.25, z, 1.2); this.crate(x + 0.6, z, 1.1, 1.2, 0.3);
@@ -182,6 +243,47 @@ export class World {
     // 顶部框架条纹
     this.box(x, y + H - 0.05, z, w + 0.04, 0.1, d + 0.04, 'darkMetal', { collide: false });
     this.box(x, y, z, w + 0.04, 0.12, d + 0.04, 'darkMetal', { collide: false });
+    // 侧面波纹板（略微凸出的竖条，靠光照形成起伏）
+    for (let i = -2; i <= 2; i++) {
+      if (along) {
+        this.box(x - w / 2 - 0.025, y + 0.14, z + i * 1.05, 0.05, H - 0.3, 0.22, color, { collide: false });
+        this.box(x + w / 2 + 0.025, y + 0.14, z + i * 1.05, 0.05, H - 0.3, 0.22, color, { collide: false });
+      } else {
+        this.box(x + i * 1.05, y + 0.14, z - d / 2 - 0.025, 0.22, H - 0.3, 0.05, color, { collide: false });
+        this.box(x + i * 1.05, y + 0.14, z + d / 2 + 0.025, 0.22, H - 0.3, 0.05, color, { collide: false });
+      }
+    }
+    // 四角角柱
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      this.box(x + sx * (w / 2 - 0.07), y + 0.02, z + sz * (d / 2 - 0.07), 0.14, H - 0.04, 0.14, 'darkMetal', { collide: false });
+    }
+    // 端面门框与锁杆
+    for (const sz of [-1, 1]) {
+      for (const xx of [-0.55, 0.55]) {
+        const px = along ? x + sz * (w / 2 + 0.05) : x + xx;
+        const pz = along ? z + xx : z + sz * (d / 2 + 0.05);
+        this.box(px, y + 0.16, pz, 0.06, H - 0.36, 0.06, 'darkMetal', { collide: false });
+      }
+      const px = along ? x + sz * (w / 2 + 0.05) : x;
+      const pz = along ? z : z + sz * (d / 2 + 0.05);
+      this.box(px, y + H * 0.5, pz, along ? 0.05 : 0.06, H - 0.3, along ? 0.06 : 0.05, 'darkMetal', { collide: false });
+      // 门把手
+      this.box(px, y + 1.25, pz, along ? 0.09 : 0.16, 0.05, along ? 0.16 : 0.09, 'steel', { collide: false });
+    }
+    if (doorOpen) {
+      const px = along ? x + w / 2 + 0.9 : x + 1.6;
+      const pz = along ? z + 1.6 : z + d / 2 + 0.9;
+      this.box(px, y, pz, along ? 0.08 : 1.2, H - 0.2, along ? 1.2 : 0.08, color, { collide: false });
+    }
+    // 顶部横向加强梁与底部叉车槽
+    for (let i = -1; i <= 1; i++) {
+      if (along) this.box(x, y + H + 0.02, z + i * 1.9, w + 0.02, 0.06, 0.12, 'darkMetal', { collide: false });
+      else this.box(x + i * 1.9, y + H + 0.02, z, 0.12, 0.06, d + 0.02, 'darkMetal', { collide: false });
+    }
+    for (const sz of [-1, 1]) {
+      if (along) this.box(x + sz * 0.8, y + 0.04, z, 0.22, 0.08, d - 0.4, 'darkMetal', { collide: false });
+      else this.box(x, y + 0.04, z + sz * 0.8, w - 0.4, 0.08, 0.22, 'darkMetal', { collide: false });
+    }
   }
   sandbags(x, z, len, rotY = 0, h = 1.0) {
     const along = Math.abs(Math.sin(rotY)) > 0.7;
@@ -235,6 +337,36 @@ export class World {
         const r = new THREE.Mesh(lg, new THREE.MeshStandardMaterial({ color: 0x300000, emissive: 0xff1010, emissiveIntensity: 2 })); r.position.set(lx, 0.8, 2.11); g.add(r);
       }
     }
+    // 保险杠、格栅、后视镜、轮毂与车牌
+    const trim = burnt ? mat('burnt') : mat('darkMetal');
+    for (const bz of [-2.14, 2.14]) {
+      const b = new THREE.Mesh(new THREE.BoxGeometry(1.84, 0.16, 0.18), trim); b.position.set(0, 0.5, bz); g.add(b);
+    }
+    const grille = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.22, 0.07), trim); grille.position.set(0, 0.72, -2.13); g.add(grille);
+    for (let i = -2; i <= 2; i++) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.18, 0.05), mat('steel')); bar.position.set(i * 0.18, 0.72, -2.17); g.add(bar);
+    }
+    for (const sx of [-1, 1]) {
+      const mir = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.11, 0.1), trim); mir.position.set(sx * 0.95, 1.2, -0.85); g.add(mir);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.03), trim); arm.position.set(sx * 0.86, 1.2, -0.85); g.add(arm);
+    }
+    for (const [wx, wz] of [[-0.85, 1.3], [0.85, 1.3], [-0.85, -1.3], [0.85, -1.3]]) {
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.19, 0.27, 12), mat('steel'));
+      hub.rotation.z = Math.PI / 2; hub.position.set(wx, 0.34, wz); g.add(hub);
+    }
+    // 车门缝、门把手与油箱盖
+    for (const sx of [-1, 1]) {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.52, 0.02), mat('burnt'));
+      seam.position.set(sx * 0.902, 0.7, -0.1); g.add(seam);
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.028, 0.12), trim);
+      handle.position.set(sx * 0.915, 0.94, 0.25); g.add(handle);
+      const fuel = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.022, 10), mat('steel'));
+      fuel.rotation.z = Math.PI / 2; fuel.position.set(sx * 0.905, 0.62, 1.62); g.add(fuel);
+    }
+    if (!burnt) {
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.11, 0.03), mat('whitePaint')); plate.position.set(0, 0.48, 2.23); g.add(plate);
+    }
+    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.75, 5), trim); antenna.position.set(0.6, 1.6, 1.0); g.add(antenna);
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     mergeGroup(g);
     g.position.set(x, 0, z); g.rotation.y = rotY;
@@ -261,6 +393,27 @@ export class World {
     }
     const hl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.05), mat('lampCold'));
     hl.position.set(-0.7, 1.05, -3.52); g.add(hl); const hl2 = hl.clone(); hl2.position.x = 0.7; g.add(hl2);
+    // 轮毂、侧护栏、油箱、排气管与踏板
+    for (const [wx, wz] of [[-0.95, -2.7], [0.95, -2.7], [-0.95, 1.4], [0.95, 1.4]]) {
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.32, 12), mat('steel'));
+      hub.rotation.z = Math.PI / 2; hub.position.set(wx, 0.42, wz); g.add(hub);
+    }
+    for (const sx of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 3.1), mat('darkMetal')); rail.position.set(sx * 1.04, 1.62, 0.9); g.add(rail);
+      const step = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.7), mat('darkMetal')); step.position.set(sx * 1.02, 0.4, -1.5); g.add(step);
+    }
+    const tank = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.3, 0.8), mat('darkMetal')); tank.position.set(-0.98, 0.72, 0.05); g.add(tank);
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.0, 8), mat('steel')); pipe.position.set(0.99, 0.68, -0.9); g.add(pipe);
+    const bumper = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.18, 0.14), mat('darkMetal')); bumper.position.set(0, 0.62, -3.6); g.add(bumper);
+    // 车门缝、门把手与后视镜
+    for (const sx of [-1, 1]) {
+      const seam = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.85, 0.02), mat('burnt'));
+      seam.position.set(sx * 1.002, 1.32, -1.0); g.add(seam);
+      const handle = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.14), mat('darkMetal'));
+      handle.position.set(sx * 1.012, 1.4, -1.35); g.add(handle);
+      const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.22, 0.06), mat('darkMetal'));
+      mirror.position.set(sx * 1.14, 1.62, -2.35); g.add(mirror);
+    }
     g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     mergeGroup(g);
     g.position.set(x, 0, z); g.rotation.y = rotY;
@@ -272,13 +425,46 @@ export class World {
     this.collider(x - (along ? 3.5 : 1.05), 0, z - (along ? 1.05 : 3.5), x + (along ? 3.5 : 1.05), 1.6, z + (along ? 1.05 : 3.5));
   }
   barrel(x, z, matName = 'containerBlue', fire = false) {
-    const m = this.mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 16), matName, x, 0.45, z);
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 20, 1), mat(matName));
+    body.position.y = 0.45; g.add(body);
+    // 桶箍
+    for (const yy of [0.14, 0.45, 0.76]) {
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.315, 0.315, 0.055, 20), mat('darkMetal'));
+      ring.position.y = yy; g.add(ring);
+    }
+    // 顶盖、底圈、加注口
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.295, 0.295, 0.035, 20), mat('darkMetal'));
+    lid.position.y = 0.925; g.add(lid);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.312, 0.312, 0.045, 20), mat('darkMetal'));
+    rim.position.y = 0.03; g.add(rim);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.05, 10), mat('steel'));
+    cap.position.set(0.15, 0.95, 0.02); g.add(cap);
+    // 纵向焊缝与出口塞
+    const weld = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.86, 5), mat('darkMetal'));
+    weld.position.set(0.3, 0.45, 0); g.add(weld);
+    const vent = new THREE.Mesh(new THREE.CylinderGeometry(0.032, 0.032, 0.025, 8), mat('steel'));
+    vent.position.set(-0.16, 0.94, 0.02); g.add(vent);
+    // 锈斑（贴在桶身外侧）
+    for (const [ang, yy, w, h] of [[0.7, 0.34, 0.11, 0.14], [-1.2, 0.62, 0.08, 0.1], [2.4, 0.2, 0.12, 0.08]]) {
+      const patch = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat('rust'));
+      patch.position.set(Math.sin(ang) * 0.302, yy, Math.cos(ang) * 0.302);
+      patch.rotation.y = ang;
+      g.add(patch);
+    }
+    // 桶身标识
+    const label = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.2), mat('yellowPaint'));
+    label.position.set(0, 0.58, 0.303); g.add(label);
+    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    mergeGroup(g);
+    g.position.set(x, 0, z);
+    this.root.add(g);
     this.collider(x - 0.3, 0, z - 0.3, x + 0.3, 0.9, z + 0.3);
     if (fire) {
       this.game.effects && this.game.effects.addFireSource(new THREE.Vector3(x, 0.95, z), 0.4);
       this.pointLight(x, 1.6, z, 0xff8a3a, 2.5, 12, true);
     }
-    return m;
+    return g;
   }
   tank(x, z, r, h, matName = 'metal') {
     this.mesh(new THREE.CylinderGeometry(r, r, h, 32), matName, x, h / 2, z);
@@ -349,11 +535,22 @@ export class World {
     if (collide) this.collider(x - s * 0.7, 0, z - s * 0.7, x + s * 0.7, s * 0.8, z + s * 0.7);
   }
   lampPost(x, z, color = 0xffd8a0, rotY = 0, intensity = 18, light = true) {
-    this.box(x, 0, z, 0.18, 6, 0.18, 'darkMetal');
-    const ax = Math.sin(rotY) * 1.2, az = Math.cos(rotY) * 1.2;
-    this.box(x + ax / 2, 5.9, z + az / 2, Math.abs(ax) + 0.12, 0.12, Math.abs(az) + 0.12, 'darkMetal', { collide: false });
-    this.box(x + ax, 5.75, z + az, 0.5, 0.15, 0.5, 'lamp', { collide: false });
-    if (light) this.spotLight(x + ax, 5.6, z + az, color, intensity);
+    // 底座 + 基座 + 分段灯杆
+    this.box(x, 0, z, 0.46, 0.1, 0.46, 'darkMetal');
+    this.box(x, 0.1, z, 0.3, 0.42, 0.3, 'darkMetal');
+    this.box(x, 0.52, z, 0.17, 5.0, 0.17, 'darkMetal');
+    this.box(x, 5.42, z, 0.24, 0.12, 0.24, 'darkMetal', { collide: false });
+    this.box(x, 5.86, z, 0.1, 0.2, 0.1, 'darkMetal', { collide: false });
+    // 检修门
+    this.box(x, 0.8, z + 0.09, 0.14, 0.4, 0.03, 'steel', { collide: false });
+    const ax = Math.sin(rotY) * 1.25, az = Math.cos(rotY) * 1.25;
+    // 横臂
+    this.box(x + ax / 2, 5.58, z + az / 2, Math.abs(ax) + 0.1, 0.09, Math.abs(az) + 0.1, 'darkMetal', { collide: false });
+    // 灯罩：外壳 + 底部发光面
+    this.box(x + ax, 5.48, z + az, 0.52, 0.16, 0.52, 'darkMetal', { collide: false });
+    this.box(x + ax, 5.39, z + az, 0.4, 0.05, 0.4, 'lamp', { collide: false });
+    this.box(x + ax, 5.57, z + az, 0.58, 0.04, 0.58, 'darkMetal', { collide: false });
+    if (light) this.spotLight(x + ax, 5.3, z + az, color, intensity);
   }
   pointLight(x, y, z, color, intensity, dist, flicker = false) {
     if (this.lights.length >= (this.game.settings.maxLights ?? (this.game.settings.quality === 'low' ? 4 : 10))) return null;
@@ -426,6 +623,12 @@ export class World {
     const m = this.mesh(g, 'tarp', x, w * 0.25, z);
     m.rotation.x = 0;
     const along = Math.abs(Math.sin(rotY)) > 0.7;
+    // 四角地钉 + 门口踏板
+    const hw = along ? d / 2 : w / 2, hd = along ? w / 2 : d / 2;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      this.box(x + sx * hw * 0.92, 0, z + sz * hd * 0.92, 0.06, 0.14, 0.06, 'darkMetal', { collide: false });
+    }
+    this.box(x, 0, z + hd, along ? 1.0 : 0.6, 0.03, along ? 0.6 : 1.0, 'wood', { collide: false });
     this.collider(x - (along ? d / 2 : w / 2) * 0.9, 0, z - (along ? w / 2 : d / 2) * 0.9, x + (along ? d / 2 : w / 2) * 0.9, w * 0.6, z + (along ? w / 2 : d / 2) * 0.9);
   }
 

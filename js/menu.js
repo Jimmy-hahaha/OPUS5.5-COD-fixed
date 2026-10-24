@@ -724,6 +724,7 @@ export class Menu {
         ${tog('invertY', '反转 Y 轴')}
         ${tog('voice', '语音播报')}
         ${tog('showFps', '显示帧数')}
+        ${tog('damageNumbers', '伤害数字')}
         <div style="font-size:11px;color:#777;margin-top:8px">画面质量中的阴影与纹理分辨率将在下次加载地图 / 刷新页面后完全生效。</div>
         <div class="keys">
           <div><b>WASD</b>移动</div><div><b>鼠标左/右键</b>射击 / 瞄准</div>
@@ -747,6 +748,7 @@ export class Menu {
       sg.querySelectorAll('div').forEach(x => x.classList.toggle('sel', x === d));
       if (k === 'voice') this.game.audio.voice = S[k];
       if (k === 'showFps') { const f = document.getElementById('fps'); if (f) f.classList.toggle('hidden', !S[k]); }
+      if (k === 'damageNumbers' && !S[k]) this.game.hud.clearDamageNumbers();
       this.game.saveSettings();
     })));
     r.querySelectorAll('.seg[data-q] div').forEach(d => d.addEventListener('click', () => {

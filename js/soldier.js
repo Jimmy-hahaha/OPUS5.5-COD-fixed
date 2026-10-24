@@ -39,14 +39,34 @@ export const STYLES = {
 };
 
 const vestMats = {};
+// 面部小部件共用材质，避免每名士兵重复创建
+const faceMats = {
+  eye: new THREE.MeshStandardMaterial({ color: 0x14100e, roughness: 0.35 }),
+  mouth: new THREE.MeshStandardMaterial({ color: 0x7a4a42, roughness: 0.8 }),
+};
 function vestMat(c) {
-  if (!vestMats[c]) vestMats[c] = new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 });
+  if (!vestMats[c]) vestMats[c] = new THREE.MeshStandardMaterial({ color: c, roughness: 0.86, metalness: 0.04 });
   return vestMats[c];
 }
 
 function capsule(r, len, m, seg = 6, rings = 12) {
   const g = new THREE.CapsuleGeometry(r, len, seg, rings);
   return new THREE.Mesh(g, m);
+}
+
+// 带肌肉起伏的肢体几何：两端半径不同，中段略微隆起
+function limbGeometry(rA, rB, len) {
+  const pts = [];
+  const n = 6;
+  const mid = Math.max(rA, rB) * 1.07;
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const r = t < 0.5
+      ? rA + (mid - rA) * (t / 0.5)
+      : mid + (rB - mid) * ((t - 0.5) / 0.5);
+    pts.push(new THREE.Vector2(Math.max(0.012, r), t * len));
+  }
+  return new THREE.LatheGeometry(pts, 9);
 }
 
 export function createSoldierModel(styleName, weaponId, attachments = {}, camo = 'none') {
@@ -65,24 +85,31 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
   const detailGroups = [detailTorso, detailNeck];
   const mkLeg = (side) => {
     const leg = new THREE.Group(); leg.position.set(side * 0.11, 0, 0); hips.add(leg);
-    const thigh = capsule(0.085, 0.3, cloth); thigh.position.y = -0.22; leg.add(thigh);
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.092, 0.072, 0.36, 9), cloth); thigh.position.y = -0.22; leg.add(thigh);
     const dLeg = new THREE.Group(); leg.add(dLeg);
     // 大腿外侧杂物袋 + 绑带（近景细节）
     const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.1, 0.075), vest); pocket.position.set(side * 0.065, -0.26, -0.01); dLeg.add(pocket);
     const flap = new THREE.Mesh(new THREE.BoxGeometry(0.058, 0.025, 0.08), vest); flap.position.set(side * 0.065, -0.205, -0.01); dLeg.add(flap);
     const strap = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.018, 0.15), dark); strap.position.set(0, -0.4, -0.005); dLeg.add(strap);
+    // 裤腿褶皱
+    const crease = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.012, 0.012), cloth); crease.position.set(0, -0.36, -0.086); dLeg.add(crease);
     const knee = new THREE.Group(); knee.position.y = -0.44; leg.add(knee);
     const dKnee = new THREE.Group(); knee.add(dKnee);
     // 护膝：主体 + 两侧固定带 + 硬质护板
     const pad = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), vest); pad.position.set(0, 0, -0.07); knee.add(pad);
+    const kneeJoint = new THREE.Mesh(new THREE.SphereGeometry(0.072, 8, 6), cloth); kneeJoint.position.set(0, 0, 0.015); knee.add(kneeJoint);
     const padShell = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.075, 0.03), dark); padShell.position.set(0, 0.005, -0.095); dKnee.add(padShell);
     for (const yy of [0.045, -0.045]) { const band = new THREE.Mesh(new THREE.BoxGeometry(0.095, 0.016, 0.13), dark); band.position.set(0, yy, 0); dKnee.add(band); }
-    const shin = capsule(0.075, 0.3, cloth); shin.position.y = -0.2; knee.add(shin);
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.05, 0.34, 9), cloth); shin.position.y = -0.2; knee.add(shin);
     // 小腿护板 + 战术靴细节
     const shinGuard = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.18, 0.04), vest); shinGuard.position.set(0, -0.2, -0.06); dKnee.add(shinGuard);
     const b = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.1, 0.25), boot); b.position.set(0, -0.44, -0.05); knee.add(b);
     const ankle = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.07, 0.11), boot); ankle.position.set(0, -0.39, 0.0); dKnee.add(ankle);
     const sole = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.03, 0.27), dark); sole.position.set(0, -0.5, -0.05); dKnee.add(sole);
+    const heel = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.06, 0.06), boot); heel.position.set(0, -0.465, 0.07); dKnee.add(heel);
+    const toe = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.055, 0.06), boot); toe.position.set(0, -0.465, -0.145); dKnee.add(toe);
+    // 靴口裤脚堆积
+    const cuffFold = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.062, 0.045, 8), cloth); cuffFold.position.set(0, -0.345, 0); dKnee.add(cuffFold);
     for (let i = 0; i < 3; i++) { const lace = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.008, 0.01), dark); lace.position.set(0, -0.375 + i * 0.018, -0.115); dKnee.add(lace); }
     detailGroups.push(dLeg, dKnee);
     mergeDirectMeshes(leg); mergeDirectMeshes(knee);
@@ -114,15 +141,58 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
   const pack = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.36, 0.14), vest); pack.position.set(0, 0.36, 0.2); torso.add(pack);
   const packLid = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.1, 0.15), vest); packLid.position.set(0, 0.5, 0.2); torso.add(packLid);
   const packStrap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.025, 0.16), dark); packStrap.position.set(0, 0.4, 0.2); torso.add(packStrap);
+  // 背包侧袋、提手与织带
+  for (const sx of [-1, 1]) {
+    const pouch = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.2, 0.1), vest); pouch.position.set(sx * 0.19, 0.36, 0.2); torso.add(pouch);
+    const webbing = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.34, 0.015), dark); webbing.position.set(sx * 0.1, 0.37, 0.275); detailTorso.add(webbing);
+  }
+  const handle = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.02, 0.03), dark); handle.position.set(0, 0.556, 0.2); torso.add(handle);
+  // 肩部三角肌与肩甲、胸前织带
+  for (const sx of [-1, 1]) {
+    const delt = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), cloth); delt.position.set(sx * 0.21, 0.47, 0); delt.scale.set(1, 1.1, 0.9); torso.add(delt);
+    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.06, 0.16), vest); pad.position.set(sx * 0.2, 0.532, 0); torso.add(pad);
+  }
+  const chestStrap = new THREE.Mesh(new THREE.BoxGeometry(0.37, 0.035, 0.02), dark); chestStrap.position.set(0, 0.47, -0.155); detailTorso.add(chestStrap);
+  const zip = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.28, 0.01), dark); zip.position.set(0, 0.35, -0.147); detailTorso.add(zip);
+  // 肩背带与腹部布料褶皱（近景）
+  for (const sx of [-1, 1]) {
+    const sling = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.34, 0.018), dark);
+    sling.position.set(sx * 0.125, 0.37, -0.152); sling.rotation.z = sx * 0.07; detailTorso.add(sling);
+  }
+  for (let i = 0; i < 3; i++) {
+    const fold = new THREE.Mesh(new THREE.BoxGeometry(0.22 + i * 0.02, 0.012, 0.012), cloth);
+    fold.position.set(0, 0.12 + i * 0.045, -0.136); detailTorso.add(fold);
+  }
 
   const neck = new THREE.Group(); neck.position.y = 0.6; torso.add(neck); parts.neck = neck;
+  // 脖子与衣领
+  const neckMesh = capsule(0.052, 0.07, cloth, 5, 8); neckMesh.position.y = 0.01; neck.add(neckMesh);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.072, 0.078, 0.035, 10), cloth); collar.position.y = -0.018; neck.add(collar);
   const headMat = st.face === 'balaclava' ? mat('glove') : mat(st.face);
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 14), headMat); head.position.y = 0.1; head.scale.set(0.95, 1.1, 1); neck.add(head);
   parts.head = head;
+  // 面部：眼睛、眉毛、鼻子、嘴、耳朵（只对露脸样式）
+  if (st.face !== 'balaclava') {
+    const eyeM = faceMats.eye;
+    const mouthM = faceMats.mouth;
+    for (const sx of [-1, 1]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.012, 8, 6), eyeM); eye.position.set(sx * 0.036, 0.115, -0.098); neck.add(eye);
+      const brow = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.007, 0.01), headMat); brow.position.set(sx * 0.036, 0.136, -0.1); neck.add(brow);
+      const ear = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), headMat); ear.position.set(sx * 0.104, 0.1, 0); ear.scale.set(0.5, 1, 0.8); neck.add(ear);
+    }
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.032, 6), headMat); nose.position.set(0, 0.098, -0.115); nose.rotation.x = -Math.PI / 2; neck.add(nose);
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.006, 0.008), mouthM); mouth.position.set(0, 0.066, -0.104); neck.add(mouth);
+  }
   if (st.head === 'helmet') {
     const h = new THREE.Mesh(new THREE.SphereGeometry(0.135, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), helm);
     h.position.y = 0.13; neck.add(h);
     const rim = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.03, 0.04), helm); rim.position.set(0, 0.14, -0.12); neck.add(rim);
+    // 侧轨、后颈护片与顶部织带
+    for (const sx of [-1, 1]) {
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.022, 0.11), dark); rail.position.set(sx * 0.136, 0.155, -0.02); neck.add(rail);
+    }
+    const nape = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.06, 0.03), helm); nape.position.set(0, 0.07, 0.115); nape.rotation.x = 0.25; neck.add(nape);
+    const topStrap = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.005, 0.2), vestMat(0x3d3a30)); topStrap.position.set(0, 0.245, 0); neck.add(topStrap);
     // 耳罩 + 盔带
     for (const sx of [-1, 1]) {
       const ear = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.09, 0.1), helm); ear.position.set(sx * 0.125, 0.1, 0.0); neck.add(ear);
@@ -166,10 +236,10 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
   gun.position.set(0.08, 0.4, -0.3);
   torso.add(gun);
   parts.gun = gun; parts.muzzle = gunInfo.muzzle;
-  const limb = (a, b, r, m) => {
+  const limb = (a, b, rA, rB, m) => {
     const dir = new THREE.Vector3().subVectors(b, a);
     const len = dir.length();
-    const mesh = capsule(r, len, m, 5, 10);
+    const mesh = new THREE.Mesh(limbGeometry(rA, rB, len), m);
     mesh.position.copy(a).addScaledVector(dir, 0.5);
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
     torso.add(mesh);
@@ -178,8 +248,8 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
   const fore = gun.position.clone().add(gunInfo.leftHand);
   const shR = new THREE.Vector3(0.23, 0.5, 0), shL = new THREE.Vector3(-0.23, 0.5, 0);
   const elR = new THREE.Vector3(0.24, 0.3, -0.12), elL = new THREE.Vector3(-0.2, 0.3, -0.25);
-  limb(shR, elR, 0.065, cloth); limb(elR, grip, 0.055, cloth);
-  limb(shL, elL, 0.065, cloth); limb(elL, fore, 0.055, cloth);
+  limb(shR, elR, 0.075, 0.052, cloth); limb(elR, grip, 0.052, 0.042, cloth);
+  limb(shL, elL, 0.075, 0.052, cloth); limb(elL, fore, 0.052, 0.042, cloth);
   const shoulderPad = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 10), vest); shoulderPad.position.copy(shR); torso.add(shoulderPad);
   const sp2 = shoulderPad.clone(); sp2.position.copy(shL); torso.add(sp2);
   // 手套：握把处和护木处各一块，避免手臂末端悬空
@@ -188,6 +258,17 @@ export function createSoldierModel(styleName, weaponId, attachments = {}, camo =
   // 袖口
   const cuffR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 10), dark); cuffR.position.copy(elR).lerp(grip, 0.35); torso.add(cuffR);
   const cuffL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 10), dark); cuffL.position.copy(elL).lerp(fore, 0.35); torso.add(cuffL);
+  // 肘部护具与手套手指（近景）
+  for (const el of [elR, elL]) {
+    const pad = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), vest); pad.position.copy(el); pad.scale.set(1, 1.15, 1); detailTorso.add(pad);
+  }
+  for (const [c, dir] of [[grip, 1], [fore, -1]]) {
+    for (let i = -1; i <= 1; i++) {
+      const f = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.045, 0.02), mat('glove'));
+      f.position.set(c.x + i * 0.018, c.y - 0.028, c.z - 0.012); f.rotation.x = dir * 0.5;
+      detailTorso.add(f);
+    }
+  }
 
   // 背包天线（近景细节，只有带耳机的正规军才有）
   if (st.nvg) {
@@ -230,6 +311,7 @@ export function makeNameTag(text, color) {
 
 // 动画状态机
 export function animateSoldier(p, s, dt) {
+  p._t = (p._t || 0) + dt;
   // s: {speed, phase, crouch(0..1), pitch, dead, deadT, recoil}
   if (s.dead) {
     const k = Math.min(1, s.deadT / 0.55);
@@ -237,8 +319,13 @@ export function animateSoldier(p, s, dt) {
     p.root.rotation.x = e * (Math.PI / 2) * s.fallDir;
     p.root.rotation.z = e * s.fallRoll;
     p.hips.position.y = 0.95 - e * 0.75;
+    p.hips.rotation.z = e * s.fallRoll * 0.6;
     p.legL.leg.rotation.x = e * 0.3; p.legR.leg.rotation.x = -e * 0.2;
+    p.legL.knee.rotation.x = -e * 0.9; p.legR.knee.rotation.x = -e * 0.5;
     p.torso.rotation.x = 0;
+    p.torso.rotation.z = e * 0.12;
+    p.neck.rotation.x = -e * 0.6;
+    if (p.gun) { p.gun.rotation.x = 0; p.gun.rotation.z = 0; }
     return;
   }
   const c = s.crouch;
@@ -250,8 +337,23 @@ export function animateSoldier(p, s, dt) {
   p.legR.leg.rotation.x = baseThigh - sw * 0.55 * amp;
   p.legL.knee.rotation.x = baseKnee - Math.max(0, -Math.cos(s.phase)) * 0.9 * amp;
   p.legR.knee.rotation.x = baseKnee - Math.max(0, Math.cos(s.phase)) * 0.9 * amp;
-  p.hips.position.y = 0.95 - c * 0.36 + (moving ? Math.abs(Math.cos(s.phase)) * 0.04 * amp : 0);
-  p.torso.rotation.x = s.pitch * 0.8 - c * 0.1 + (s.recoil || 0) * 0.12;
+  // 待机呼吸 + 行走起伏 / 重心侧移
+  const settle = 1 - Math.min(1, s.speed / 4);
+  const breathe = Math.sin(p._t * 1.7) * 0.006 * settle;
+  const bob = moving ? Math.abs(Math.cos(s.phase)) * 0.04 * amp : breathe;
+  p.hips.position.y = 0.95 - c * 0.36 + bob;
+  p.hips.rotation.z = moving ? Math.sin(s.phase) * 0.025 * amp : Math.sin(p._t * 0.9) * 0.006;
+  // 躯干：前倾 + 侧倾 + 后坐
+  p.torso.rotation.x = s.pitch * 0.8 - c * 0.1 + (s.recoil || 0) * 0.12 + Math.min(1, s.speed / 6) * 0.05;
   p.torso.rotation.y = moving ? sw * 0.06 : 0;
+  p.torso.rotation.z = (moving ? -Math.sin(s.phase) * 0.03 * amp : 0) + Math.sin(p._t * 1.1) * 0.008;
+  // 头部：俯仰跟随，行走时轻微反向摆动，待机时缓慢环视
   p.neck.rotation.x = s.pitch * 0.2;
+  p.neck.rotation.y = moving ? -sw * 0.04 : Math.sin(p._t * 0.6) * 0.05;
+  // 枪口随呼吸轻晃、受击时枪身回弹
+  if (p.gun) {
+    p.gun.position.y = 0.4 + Math.sin(p._t * 1.6) * 0.003 * settle - (s.recoil || 0) * 0.01;
+    p.gun.rotation.x = (s.recoil || 0) * 0.03;
+    p.gun.rotation.z = (s.recoil || 0) * 0.04;
+  }
 }

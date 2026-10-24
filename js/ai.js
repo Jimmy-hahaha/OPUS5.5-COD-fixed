@@ -78,7 +78,9 @@ export class Bot {
   }
   takeDamage(dmg, info) {
     if (!this.alive) return false;
+    info = info || {};
     this.hp -= dmg;
+    if (this.game.damageNumber) this.game.damageNumber(this, dmg, info, this.hp <= 0);
     const a = info.attacker;
     if (a) this.dmgTaken.set(a, (this.dmgTaken.get(a) || 0) + dmg);
     this.anim.recoil = 0.5;

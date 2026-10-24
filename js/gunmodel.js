@@ -45,6 +45,19 @@ function mergeStaticMeshes(root) {
   }
 }
 
+// 机械瞄具校准：把“照门缺口 → 准星顶端”的瞄准线转正，并让 ADS 视点落在这条线上。
+// 旋转量写回枪模 root，info.sight 给出旋转后的视点；ADS 平移 -sight 后瞄准线恰好
+// 穿过相机原点并沿视线方向，弹着点因而与机瞄重合。光学瞄具（optic）不走这里。
+function calibrateIron(root, info, yRear, zRear, yFront, zFront, zEye) {
+  const dy = yFront - yRear, dz = zFront - zRear;
+  if (Math.abs(dz) < 1e-6) return;
+  const a = Math.atan2(-dy, -dz);          // 旋转后瞄准线平行于 -Z
+  const y = yRear + dy * ((zEye - zRear) / dz);
+  const ca = Math.cos(a), sa = Math.sin(a);
+  info.sight.set(0, y * ca - zEye * sa, y * sa + zEye * ca);
+  root.rotation.x = a;
+}
+
 function buildGunInner(weaponId, att = {}, camo = 'none', opts = {}) {
   const def = WEAPONS[weaponId];
   const M = def.model;
@@ -283,7 +296,8 @@ function buildGunInner(weaponId, att = {}, camo = 'none', opts = {}) {
     add(bgeo(0.022, 0.022, 0.016), metal, 0, py, zRear - 0.02);              // 后照门座
     det(bgeo(0.014, 0.005, 0.006), metal, 0, py + 0.014, zRear - 0.02);      // 照门横梁
     det(bgeo(0.003, 0.006, 0.003), dark, 0, py + 0.018, zRear - 0.02);       // 缺口
-    info.sight.set(0, railY + 0.034 + opticLift, zRear + 0.13);
+    // 瞄准线 = 缺口中心 → 准星柱顶（两者同高，弹道不再落在准星下方）
+    calibrateIron(root, info, py + 0.018, zRear - 0.02, py + 0.0175, hz1 + 0.02, zRear + 0.13);
   }
   // 提把：95 式 / 95 班机的标志性造型
   if (M.carry) {
@@ -302,7 +316,8 @@ function buildGunInner(weaponId, att = {}, camo = 'none', opts = {}) {
       add(bgeo(0.026, 0.018, 0.02), metal, 0, cy + 0.014, cf - 0.03);          // 前准星护圈
       add(bgeo(0.004, 0.022, 0.006), metal, 0, cy + 0.022, cf - 0.03);         // 准星
       add(bgeo(0.024, 0.02, 0.014), metal, 0, railY + 0.04, zRear - 0.025);    // 后照门
-      info.sight.set(0, cy + 0.026, zRear + 0.12);
+      // 提把机瞄：照门顶端 → 准星顶端连成瞄准线（两者有高差，需把枪身微抬对齐弹道）
+      calibrateIron(root, info, railY + 0.05, zRear - 0.025, cy + 0.033, cf - 0.03, zRear + 0.12);
     }
   }
   // 瞄具
@@ -556,10 +571,12 @@ function addLaser(add, x, y, z) {
 export function buildArms(gunInfo, sleeveMat) {
   const g = new THREE.Group();
   const glove = mat('glove');
-  const limb = (a, b, r, m) => {
+  const dark = mat('darkMetal');
+  // 锥形肢体：a 端半径 rA，b 端半径 rB
+  const limb = (a, b, rA, rB, m) => {
     const dir = new THREE.Vector3().subVectors(b, a);
     const len = dir.length();
-    const geo = new THREE.CapsuleGeometry(r, len, 4, 10);
+    const geo = new THREE.CylinderGeometry(rB, rA, len, 8, 3);
     const mesh = new THREE.Mesh(geo, m);
     mesh.position.copy(a).addScaledVector(dir, 0.5);
     mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
@@ -570,18 +587,36 @@ export function buildArms(gunInfo, sleeveMat) {
   const rh = new THREE.Vector3(0.0, -0.035, 0.05);
   const re = new THREE.Vector3(0.1, -0.16, 0.22);
   const rs = new THREE.Vector3(0.16, -0.3, 0.5);
-  limb(rh, re, 0.032, glove);
-  limb(re.clone().lerp(rh, 0.35), re, 0.042, sleeveMat);
-  limb(re, rs, 0.055, sleeveMat);
+  limb(rh, re, 0.032, 0.04, glove);
+  limb(re.clone().lerp(rh, 0.3), re, 0.044, 0.04, sleeveMat);
+  limb(re, rs, 0.05, 0.062, sleeveMat);
+  limb(rh.clone().lerp(re, 0.08), rh.clone().lerp(re, 0.24), 0.046, 0.049, dark);
   const rhand = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, 0.09), glove); rhand.position.copy(rh).add(new THREE.Vector3(0.012, 0, 0)); g.add(rhand);
+  // 右手手指与拇指
+  for (let i = 0; i < 4; i++) {
+    const f = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.055, 0.03), glove);
+    f.position.copy(rh).add(new THREE.Vector3(-0.018 + i * 0.012, -0.006, -0.014));
+    f.rotation.z = 0.12; g.add(f);
+  }
+  const rthumb = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.04, 0.045), glove);
+  rthumb.position.copy(rh).add(new THREE.Vector3(0.024, 0.008, -0.004)); rthumb.rotation.z = -0.4; g.add(rthumb);
   // 左手（护木）
   const lh = gunInfo.leftHand.clone().add(new THREE.Vector3(-0.012, -0.015, 0));
   const le = new THREE.Vector3(-0.14, -0.14, lh.z + 0.2);
   const ls = new THREE.Vector3(-0.22, -0.3, lh.z + 0.55);
-  limb(lh, le, 0.032, glove);
-  limb(le.clone().lerp(lh, 0.3), le, 0.042, sleeveMat);
-  limb(le, ls, 0.055, sleeveMat);
+  limb(lh, le, 0.032, 0.04, glove);
+  limb(le.clone().lerp(lh, 0.3), le, 0.044, 0.04, sleeveMat);
+  limb(le, ls, 0.05, 0.062, sleeveMat);
+  limb(lh.clone().lerp(le, 0.08), lh.clone().lerp(le, 0.24), 0.046, 0.049, dark);
   const lhand = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.1), glove); lhand.position.copy(lh); lhand.rotation.z = 0.5; g.add(lhand);
+  // 左手手指沿护木排布
+  for (let i = 0; i < 4; i++) {
+    const f = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.016, 0.052), glove);
+    f.position.copy(lh).add(new THREE.Vector3(0.004, -0.028 + i * 0.003, -0.022 + i * 0.014));
+    f.rotation.x = 0.12; g.add(f);
+  }
+  const lthumb = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.038, 0.04), glove);
+  lthumb.position.copy(lh).add(new THREE.Vector3(0.018, 0.012, 0.036)); lthumb.rotation.z = 0.5; g.add(lthumb);
   g.traverse(o => { if (o.isMesh) o.castShadow = false; });
   return g;
 }

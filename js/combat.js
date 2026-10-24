@@ -98,19 +98,61 @@ export class Projectile {
     this.game = game; this.type = type; this.pos = pos.clone(); this.vel = vel.clone(); this.owner = owner;
     this.fuse = fuse; this.alive = true; this.stuck = false; this.age = 0; this.bounces = 0;
     this.netVis = !!opts.netVis;
-    let geo, m;
-    if (type === 'frag') { geo = new THREE.SphereGeometry(0.05, 10, 8); m = mat('gunGreen'); }
-    else if (type === 'semtex') { geo = new THREE.BoxGeometry(0.08, 0.05, 0.05); m = mat('yellowPaint'); }
-    else if (type === 'molotov') { geo = new THREE.CylinderGeometry(0.03, 0.035, 0.2, 8); m = mat('glass'); }
-    else if (type === 'flash') { geo = new THREE.CylinderGeometry(0.03, 0.03, 0.11, 8); m = mat('darkMetal'); }
-    else if (type === 'smoke') { geo = new THREE.CylinderGeometry(0.035, 0.035, 0.13, 8); m = mat('metal'); }
-    else if (type === 'rocket') { geo = new THREE.ConeGeometry(0.06, 0.4, 10).rotateX(-Math.PI / 2); m = mat('gunGreen'); }
-    else if (type === 'bomb') { geo = new THREE.CapsuleGeometry(0.12, 0.6, 4, 8).rotateX(Math.PI / 2); m = mat('darkMetal'); }
-    this.mesh = new THREE.Mesh(geo, m);
+    this.mesh = this.buildMesh(type);
     this.mesh.castShadow = true;
     this.mesh.position.copy(this.pos);
     game.scene.add(this.mesh);
-    if (type === 'semtex') { this.light = new THREE.Mesh(new THREE.SphereGeometry(0.025, 6, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 0.3, 0.3) })); this.light.position.y = 0.05; this.mesh.add(this.light); }
+    if (type === 'semtex') { this.light = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 4), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 0.3, 0.3) })); this.light.position.set(0.02, 0.04, 0); this.mesh.add(this.light); }
+  }
+  buildMesh(type) {
+    const g = new THREE.Group();
+    const add = (geo, matName, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => {
+      const mesh = new THREE.Mesh(geo, typeof matName === 'string' ? mat(matName) : matName);
+      mesh.position.set(x, y, z); mesh.rotation.set(rx, ry, rz);
+      mesh.castShadow = true;
+      g.add(mesh); return mesh;
+    };
+    if (type === 'frag') {
+      const body = add(new THREE.SphereGeometry(0.058, 12, 10), 'gunGreen'); body.scale.set(1, 1.22, 1);
+      for (let i = 0; i < 3; i++) add(new THREE.TorusGeometry(0.057, 0.005, 4, 14), 'gunMetal', 0, -0.028 + i * 0.028, 0, Math.PI / 2);
+      add(new THREE.CylinderGeometry(0.018, 0.021, 0.035, 8), 'steel', 0, 0.088, 0);
+      add(new THREE.BoxGeometry(0.012, 0.05, 0.028), 'steel', 0.021, 0.08, 0);
+      add(new THREE.TorusGeometry(0.015, 0.004, 4, 10), 'steel', -0.018, 0.098, 0);
+    } else if (type === 'semtex') {
+      add(new THREE.BoxGeometry(0.09, 0.05, 0.06), 'yellowPaint');
+      add(new THREE.BoxGeometry(0.07, 0.012, 0.045), 'darkMetal', 0, 0.031, 0);
+      add(new THREE.BoxGeometry(0.022, 0.01, 0.02), 'steel', 0.02, 0.04, 0);
+      add(new THREE.BoxGeometry(0.05, 0.004, 0.04), 'redPaint', 0, -0.028, 0);
+    } else if (type === 'molotov') {
+      add(new THREE.CylinderGeometry(0.037, 0.033, 0.15, 10), 'glass', 0, -0.01, 0);
+      add(new THREE.CylinderGeometry(0.018, 0.033, 0.06, 10), 'glass', 0, 0.095, 0);
+      add(new THREE.CylinderGeometry(0.019, 0.019, 0.035, 8), 'clothRed', 0, 0.14, 0);
+      add(new THREE.CylinderGeometry(0.034, 0.034, 0.02, 10), 'yellowPaint', 0, 0.02, 0);
+    } else if (type === 'flash') {
+      add(new THREE.CylinderGeometry(0.03, 0.03, 0.11, 12), 'metal');
+      for (const y of [-0.04, 0.04]) add(new THREE.CylinderGeometry(0.032, 0.032, 0.012, 12), 'darkMetal', 0, y, 0);
+      add(new THREE.CylinderGeometry(0.031, 0.031, 0.012, 12), 'yellowPaint', 0, 0.061, 0);
+      add(new THREE.CylinderGeometry(0.012, 0.012, 0.014, 8), 'steel', 0, 0.07, 0);
+    } else if (type === 'smoke') {
+      add(new THREE.CylinderGeometry(0.034, 0.034, 0.12, 12), 'metal');
+      for (const y of [-0.045, 0.045]) add(new THREE.CylinderGeometry(0.036, 0.036, 0.012, 12), 'darkMetal', 0, y, 0);
+      add(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 12), 'containerGreen', 0, 0, 0);
+      add(new THREE.CylinderGeometry(0.011, 0.011, 0.02, 8), 'steel', 0, 0.07, 0);
+    } else if (type === 'rocket') {
+      add(new THREE.CylinderGeometry(0.05, 0.05, 0.34, 12), 'gunGreen', 0, 0, 0, Math.PI / 2);
+      add(new THREE.ConeGeometry(0.06, 0.14, 12).rotateX(Math.PI / 2), 'gunGreen', 0, 0, 0.2);
+      add(new THREE.CylinderGeometry(0.052, 0.052, 0.03, 12), 'darkMetal', 0, 0, -0.19, Math.PI / 2);
+      for (const a of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        const fin = add(new THREE.BoxGeometry(0.006, 0.1, 0.09), 'darkMetal', Math.cos(a) * 0.05, Math.sin(a) * 0.05, -0.15);
+        fin.rotation.z = a;
+      }
+    } else if (type === 'bomb') {
+      add(new THREE.CapsuleGeometry(0.12, 0.6, 4, 10), 'darkMetal', 0, 0, 0, Math.PI / 2);
+      for (const z of [-0.2, 0.2]) add(new THREE.TorusGeometry(0.13, 0.012, 4, 14), 'redPaint', 0, 0, z, 0, Math.PI / 2);
+      add(new THREE.BoxGeometry(0.12, 0.06, 0.16), 'yellowPaint', 0, 0.14, 0);
+      add(new THREE.BoxGeometry(0.06, 0.15, 0.12), 'darkMetal', 0, 0.02, -0.36);
+    }
+    return g;
   }
   update(dt) {
     if (!this.alive) return;

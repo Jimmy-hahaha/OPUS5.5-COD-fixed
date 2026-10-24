@@ -32,6 +32,8 @@ function std(texKey, scale, params = {}) {
     map: t.map, normalMap: t.normalMap, roughnessMap: t.roughnessMap || null,
     roughness: params.roughness ?? 1, metalness: params.metalness ?? 0, color: params.color ?? 0xffffff,
   });
+  // 斜视时保持纹理清晰（地面、墙面尤其明显）
+  for (const tex of [t.map, t.normalMap, t.roughnessMap]) if (tex) tex.anisotropy = 4;
   if (params.normalScale) m.normalScale.set(params.normalScale, params.normalScale);
   m.userData.texScale = scale;
   return m;
@@ -52,7 +54,7 @@ function buildMaterials() {
   MATS.asphaltWet = std('asphalt', 6, { roughness: 1, color: 0x9a9aa2 });
   MATS.sidewalk = std('tiles', 3, { color: 0xa9a8a4 });
   MATS.tiles = std('tiles', 2, { color: 0xd8cfc0 });
-  const mk = (c) => std('metal', 2.5, { color: c, metalness: 0.55, roughness: 1 });
+  const mk = (c) => std('metal', 2.5, { color: c, metalness: 0.62, roughness: 0.72 });
   MATS.metal = mk(0xb8bcc0);
   MATS.containerRed = mk(0xa8382c);
   MATS.containerBlue = mk(0x2f5f93);
@@ -60,22 +62,23 @@ function buildMaterials() {
   MATS.containerOrange = mk(0xc9772b);
   MATS.containerGray = mk(0x7a7f85);
   MATS.containerYellow = mk(0xc9a52b);
-  MATS.metalRoof = std('metal', 3, { color: 0x8a8f94, metalness: 0.6 });
-  MATS.wood = std('wood', 2);
-  MATS.crate = std('crate', 1);
+  MATS.metalRoof = std('metal', 3, { color: 0x8a8f94, metalness: 0.6, roughness: 0.76 });
+  MATS.wood = std('wood', 2, { roughness: 0.88 });
+  MATS.crate = std('crate', 1, { roughness: 0.95 });
   MATS.dirt = std('dirt', 5);
   MATS.grass = std('grass', 6);
   MATS.rock = std('rock', 5);
   MATS.rockSnow = std('rock', 5, { color: 0xc8ccd4 });
-  MATS.sandbag = std('sandbag', 1);
+  MATS.sandbag = std('sandbag', 1, { roughness: 0.98 });
   MATS.tarp = new THREE.MeshStandardMaterial({ color: 0x55603f, roughness: 0.95, side: THREE.DoubleSide });
   MATS.clothRed = new THREE.MeshStandardMaterial({ color: 0x9a2b22, roughness: 0.95, side: THREE.DoubleSide });
   MATS.clothBlue = new THREE.MeshStandardMaterial({ color: 0x2a4e7a, roughness: 0.95, side: THREE.DoubleSide });
   MATS.clothYellow = new THREE.MeshStandardMaterial({ color: 0xc49a2e, roughness: 0.95, side: THREE.DoubleSide });
   MATS.clothGreen = new THREE.MeshStandardMaterial({ color: 0x3c6a3a, roughness: 0.95, side: THREE.DoubleSide });
-  MATS.darkMetal = new THREE.MeshStandardMaterial({ color: 0x2a2c2e, roughness: 0.5, metalness: 0.7 });
+  MATS.darkMetal = new THREE.MeshStandardMaterial({ color: 0x2a2c2e, roughness: 0.58, metalness: 0.72 });
   MATS.steel = new THREE.MeshStandardMaterial({ color: 0x8e9398, roughness: 0.35, metalness: 0.9 });
-  MATS.rubber = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
+  MATS.rust = new THREE.MeshStandardMaterial({ color: 0x6e432a, roughness: 0.95, metalness: 0.15 });
+  MATS.rubber = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.95 });
   MATS.glass = new THREE.MeshStandardMaterial({ color: 0x223040, roughness: 0.05, metalness: 0.9, transparent: true, opacity: 0.55 });
   MATS.windowLit = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0xffc27a, emissiveIntensity: 1.2 });
   MATS.windowDark = new THREE.MeshStandardMaterial({ color: 0x0a0c10, roughness: 0.1, metalness: 0.8 });
@@ -93,8 +96,8 @@ function buildMaterials() {
   MATS.whitePaint = new THREE.MeshStandardMaterial({ color: 0xdedede, roughness: 0.7 });
   MATS.redPaint = new THREE.MeshStandardMaterial({ color: 0xa02020, roughness: 0.6 });
   // 人物
-  MATS.skin = new THREE.MeshStandardMaterial({ color: 0xc08a6a, roughness: 0.75 });
-  MATS.skinDark = new THREE.MeshStandardMaterial({ color: 0x7a5238, roughness: 0.75 });
+  MATS.skin = new THREE.MeshStandardMaterial({ color: 0xc08a6a, roughness: 0.68 });
+  MATS.skinDark = new THREE.MeshStandardMaterial({ color: 0x7a5238, roughness: 0.68 });
   MATS.glove = new THREE.MeshStandardMaterial({ color: 0x2a2622, roughness: 0.85 });
   MATS.boot = new THREE.MeshStandardMaterial({ color: 0x3a2e22, roughness: 0.85 });
   for (const k of ['fab_ally', 'fab_enemy', 'fab_snowA', 'fab_snowB', 'fab_urbanB']) {

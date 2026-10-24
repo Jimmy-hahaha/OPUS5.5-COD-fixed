@@ -317,10 +317,17 @@ export class WeaponSystem {
     const bx = Math.sin(this.bobPhase) * 0.012 * bobAmt, by = -Math.abs(Math.cos(this.bobPhase)) * 0.012 * bobAmt;
     pos.x += bx + this.sway.x * (1 - ae * 0.8); pos.y += by + this.sway.y * (1 - ae * 0.8);
     pos.z += this.vmKick * (1 - ae * 0.5);
-    // 呼吸
+    // 呼吸（开镜时保留轻微起伏）
     const t = performance.now() * 0.001;
-    pos.y += Math.sin(t * 1.6) * 0.002 * (1 - ae);
-    let rx = this.vmRot * (1 - ae * 0.6), ry = 0, rz = bx * 2;
+    pos.y += Math.sin(t * 1.6) * (0.002 * (1 - ae) + 0.0009 * ae);
+    pos.x += Math.sin(t * 0.9) * 0.0012 * ae;
+    // 落地缓冲：枪身随相机一起下沉并上抬枪口
+    const land = pl.landDip || 0;
+    pos.y -= land * 0.55; pos.z += land * 0.2;
+    let rx = this.vmRot * (1 - ae * 0.6) + land * 1.1, ry = 0, rz = bx * 2;
+    // 步伐带来的轻微侧倾与俯仰
+    rz += Math.sin(this.bobPhase) * 0.012 * bobAmt;
+    rx += Math.cos(this.bobPhase * 2) * 0.004 * bobAmt;
     // 冲刺姿势
     const s = this.sprintT;
     pos.x += -0.06 * s; pos.y += -0.05 * s; pos.z += 0.03 * s;

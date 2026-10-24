@@ -58,7 +58,7 @@ const GradeShader = {
 
 class Game {
   constructor() {
-    this.settings = Object.assign({ sens: 1.0, adsSens: 0.9, fov: 78, quality: 'high', volume: 0.8, voice: true, invertY: false, showFps: true }, JSON.parse(localStorage.getItem('mf_settings') || '{}'));
+    this.settings = Object.assign({ sens: 1.0, adsSens: 0.9, fov: 78, quality: 'high', volume: 0.8, voice: true, invertY: false, showFps: true, damageNumbers: true }, JSON.parse(localStorage.getItem('mf_settings') || '{}'));
     this.profile = Object.assign({ xp: 0, classes: JSON.parse(JSON.stringify(DEFAULT_CLASSES)), streaks: [...DEFAULT_STREAKS], selClass: 0, campaignBest: null }, JSON.parse(localStorage.getItem('mf_profile') || '{}'));
     if (!this.profile.classes || this.profile.classes.length < 5) this.profile.classes = JSON.parse(JSON.stringify(DEFAULT_CLASSES));
     this.state = 'loading';
@@ -71,6 +71,23 @@ class Game {
   }
   saveProfile() { localStorage.setItem('mf_profile', JSON.stringify(this.profile)); }
   saveSettings() { localStorage.setItem('mf_settings', JSON.stringify(this.settings)); }
+
+  // 浮动伤害数字：只显示本地玩家对他人/靶子造成的伤害，可在设置里关闭
+  damageNumber(target, amount, info = {}, killed = false) {
+    const pl = this.player;
+    if (this.settings.damageNumbers === false || !pl || !info || info.attacker !== pl) return;
+    if (!target || target === pl || !(amount > 0)) return;
+    let p = info.point;
+    if (!p) {
+      if (target.chestPos) p = target.chestPos(new THREE.Vector3());
+      else if (target.pos) p = new THREE.Vector3(target.pos.x, target.pos.y + 1.2, target.pos.z);
+      else return;
+    }
+    this.hud.damageNumber(p, amount, {
+      head: !!info.head, kill: killed, merge: !!info.burn,
+      target,
+    });
+  }
 
   async init() {
     const q = this.settings.quality;
@@ -341,7 +358,7 @@ class Game {
     m.position.set(pos.x, (this.world ? this.world.groundHeight(pos.x, pos.z, pos.y + 1, 0.2) : 0) + 0.06, pos.z);
     m.rotation.set(0, Math.random() * 6, Math.PI / 2);
     this.scene.add(m);
-    const p = { weaponId, att: att || {}, mesh: m, pos: m.position.clone(), mag, reserve, t: 0 };
+    const p = { weaponId, att: att || {}, mesh: m, pos: m.position.clone(), baseY: m.position.y, mag, reserve, t: 0 };
     this.pickups.push(p);
     if (this.pickups.length > 14) { const o = this.pickups.shift(); this.scene.remove(o.mesh); }
     return p;
@@ -432,6 +449,9 @@ class Game {
       const p = this.pickups[i];
       p.t += dt;
       if (p.t > 30) { this.scene.remove(p.mesh); this.pickups.splice(i, 1); continue; }
+      // 掉落武器缓慢自转并轻微浮动，方便发现
+      p.mesh.rotation.y += dt * 0.7;
+      p.mesh.position.y = p.baseY + Math.sin(p.t * 2.2) * 0.035;
       if (!pl || !pl.alive) continue;
       const d = Math.hypot(p.pos.x - pl.pos.x, p.pos.z - pl.pos.z);
       // 相同武器自动拾取弹药
